@@ -58,5 +58,5 @@ jobs:
             基于 Steam P2P 网络的局域网联机工具 | LAN tunneling via Steam P2P networking
           releaseDraft: false
           prerelease: false
-          generateReleaseNotes: true
+          generateReleaseNotes: false
           includeUpdaterJson: false
