@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+input[type="number"] {
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+
 :root {
 	--card: 252 252 252;
 	--ring: 100 74 64;

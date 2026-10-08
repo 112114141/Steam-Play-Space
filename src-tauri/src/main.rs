@@ -556,18 +556,18 @@ async fn main() {
                             position,
                             ..
                         } => {
-                            // 在托盘图标旁创建独立弹出窗口，自动判断位置
                             let app_handle = app.clone();
                             let popup_w = 220.0;
                             let popup_h = 360.0;
                             let gap = 8.0;
-                            // 如果图标在屏幕下半部分 → 向上弹出，否则向下
-                            let y = if position.y > 600.0 {
-                                (position.y - popup_h - gap).max(0.0)
-                            } else {
-                                position.y + gap
-                            };
-                            let x = (position.x - popup_w / 2.0).max(8.0).min(position.x + 8.0);
+                            let scale = app_handle
+                                .get_webview_window("main")
+                                .and_then(|w| w.scale_factor().ok())
+                                .unwrap_or(1.0);
+                            let icon_x = position.x / scale;
+                            let icon_y = position.y / scale;
+                            let y = (icon_y - popup_h - gap).max(0.0);
+                            let x = (icon_x - popup_w / 2.0).max(8.0);
                             if let Ok(window) = tauri::WebviewWindowBuilder::new(
                                 &app_handle,
                                 "tray-popup",
