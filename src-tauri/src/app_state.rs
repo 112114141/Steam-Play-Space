@@ -50,6 +50,7 @@ pub struct AppState {
     pub bytes_sent: Arc<AtomicU64>,
     pub bytes_received: Arc<AtomicU64>,
     pub voice_active: Arc<AtomicBool>,
+    pub file_save_path: Arc<Mutex<String>>,
 }
 
 impl AppState {
@@ -72,6 +73,7 @@ impl AppState {
             bytes_sent: Arc::new(AtomicU64::new(0)),
             bytes_received: Arc::new(AtomicU64::new(0)),
             voice_active: Arc::new(AtomicBool::new(false)),
+            file_save_path: Arc::new(Mutex::new(String::new())),
         })
     }
 }

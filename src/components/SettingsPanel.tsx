@@ -1,5 +1,6 @@
 import {invoke} from "@tauri-apps/api/core";
-import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves} from "lucide-react";
+import {open} from "@tauri-apps/plugin-dialog";
+import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves, Folder, AlertCircle} from "lucide-react";
 import {useApp} from "../AppContext";
 import {useEffect, useState} from "react";
 
@@ -25,8 +26,33 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 		}
 	};
 
+	const selectSaveFolder = async () => {
+		try {
+			const selected = await open({directory: true, multiple: false});
+			if (typeof selected === "string") {
+				setSettings({fileSavePath: selected});
+				await invoke("set_file_save_path", {path: selected});
+			}
+		} catch (e) {
+			console.error("选择文件夹失败:", e);
+		}
+	};
+
+	const resetSaveFolder = async () => {
+		setSettings({fileSavePath: ""});
+		await invoke("set_file_save_path", {path: ""});
+	};
+
 	useEffect(() => {
-		if (isOpen) refreshDevices();
+		if (isOpen) {
+			refreshDevices();
+			invoke<string>("get_file_save_path").then((p) => {
+				if (p !== settings.fileSavePath) {
+					setSettings({fileSavePath: p});
+				}
+			}).catch(() => {});
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isOpen]);
 
 	if (!isOpen) return null;
@@ -186,6 +212,64 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 						<p className="text-[11px] text-muted-foreground leading-relaxed">
 							自动切换通过 netstat 检测端口协议类型，准确率约 90%。同端口有 TCP+UDP 时优先 TCP。
 						</p>
+					</div>
+				</div>
+
+				<div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+					<div className="flex items-center gap-3">
+						<AlertCircle className="w-5 h-5 text-primary" />
+						<div className="flex-1">
+							<p className="text-sm font-bold text-foreground">开房间确认弹窗</p>
+							<p className="text-xs text-muted-foreground">创建房间前提示确认游戏已就绪</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-between pt-2 border-t border-border">
+						<span className="text-xs text-muted-foreground">
+							{settings.showRoomConfirm ? "已开启" : "已关闭"}
+						</span>
+						<button
+							onClick={() => setSettings({showRoomConfirm: !settings.showRoomConfirm})}
+							className={`w-12 h-7 rounded-full transition-colors relative ${
+								settings.showRoomConfirm ? "bg-primary" : "bg-muted-foreground/30"
+							}`}
+						>
+							<div
+								className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+									settings.showRoomConfirm ? "translate-x-6" : "translate-x-1"
+								}`}
+							/>
+						</button>
+					</div>
+				</div>
+
+				<div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+					<div className="flex items-center gap-3">
+						<Folder className="w-5 h-5 text-primary" />
+						<div className="flex-1">
+							<p className="text-sm font-bold text-foreground">文件保存位置</p>
+							<p className="text-xs text-muted-foreground">接收的文件保存到此目录</p>
+						</div>
+					</div>
+					<div className="pt-2 border-t border-border space-y-2">
+						<div className="px-3 py-2 rounded-lg bg-card border border-border text-xs text-foreground truncate">
+							{settings.fileSavePath || "默认：桌面"}
+						</div>
+						<div className="flex gap-2">
+							<button
+								onClick={selectSaveFolder}
+								className="flex-1 h-9 rounded-lg bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20 transition-colors"
+							>
+								选择文件夹
+							</button>
+							{settings.fileSavePath && (
+								<button
+									onClick={resetSaveFolder}
+									className="px-3 h-9 rounded-lg bg-muted/30 text-xs font-bold text-muted-foreground hover:bg-muted/50 transition-colors"
+								>
+									恢复默认
+								</button>
+							)}
+						</div>
 					</div>
 				</div>
 

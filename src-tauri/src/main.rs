@@ -521,15 +521,16 @@ async fn main() {
 
     let client_for_file = app_state.steam_client.clone();
     let client_for_voice = app_state.steam_client.clone();
+    let file_save_path = app_state.file_save_path.clone();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
             *LOGGER.app_handle.lock() = Some(app.handle().clone());
             drain_pending_events();
 
             let handle = app.handle().clone();
-            file_transfer::start_file_receiver(handle.clone(), client_for_file);
+            file_transfer::start_file_receiver(handle.clone(), client_for_file, file_save_path);
             voice::start_voice_receiver(handle, client_for_voice);
 
             // 系统托盘 - 右键传坐标，前端自定义菜单
@@ -622,6 +623,8 @@ async fn main() {
             chat::send_chat_message,
             chat::get_chat_history,
             file_transfer::send_file_to_lobby,
+            file_transfer::set_file_save_path,
+            file_transfer::get_file_save_path,
             voice::send_voice_data,
             voice::join_voice,
             voice::leave_voice,

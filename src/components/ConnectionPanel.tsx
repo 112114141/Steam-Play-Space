@@ -32,6 +32,8 @@ export function ConnectionPanel() {
 	const [processSearch, setProcessSearch] = useState("");
 	const [autoDetect, setAutoDetect] = useState(settings.autoDetectDefault);
 	const prevPortsRef = useRef<Set<number>>(new Set());
+	const [showConfirmModal, setShowConfirmModal] = useState(false);
+	const [dontShowAgain, setDontShowAgain] = useState(false);
 
 	const loadKnownPorts = (): Set<number> => {
 		const saved = localStorage.getItem("p2p_known_ports");
@@ -129,7 +131,7 @@ export function ConnectionPanel() {
 						.includes(processSearch.toLowerCase())
 				);
 
-	const handleCreateLobby = async () => {
+	const doCreateLobby = async () => {
 		setLoading("host");
 		const toastId = "create-lobby";
 		try {
@@ -153,6 +155,23 @@ export function ConnectionPanel() {
 		} finally {
 			setLoading(null);
 		}
+	};
+
+	const handleCreateLobby = async () => {
+		if (settings.showRoomConfirm) {
+			setShowConfirmModal(true);
+			return;
+		}
+		await doCreateLobby();
+	};
+
+	const confirmCreateLobby = async () => {
+		if (dontShowAgain) {
+			setSettings({showRoomConfirm: false});
+		}
+		setShowConfirmModal(false);
+		setDontShowAgain(false);
+		await doCreateLobby();
 	};
 
 	const handleJoinLobby = async () => {
@@ -399,6 +418,49 @@ export function ConnectionPanel() {
 			<p className="text-[11px] text-muted-foreground text-center leading-relaxed">
 				创建房间后可邀请好友加入，对方通过房间 ID 即可连接。
 			</p>
+
+			{showConfirmModal && (
+				<>
+					<div
+						className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[150]"
+						onClick={() => setShowConfirmModal(false)}
+					/>
+					<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4 p-6 rounded-3xl bg-card border border-border shadow-2xl space-y-4 z-[160]">
+						<h3 className="text-base font-black text-foreground text-center">
+							🎮 准备开房间了？
+						</h3>
+						<p className="text-sm text-muted-foreground text-center leading-relaxed">
+							请确认你已在游戏中创建好局域网房间，并选择了对应的端口号。
+						</p>
+						<div className="flex gap-3">
+							<button
+								onClick={() => {
+									setShowConfirmModal(false);
+									setDontShowAgain(false);
+								}}
+								className="flex-1 h-11 rounded-xl border border-border bg-muted/30 text-sm font-bold text-muted-foreground hover:bg-muted/50 transition-colors"
+							>
+								否，返回
+							</button>
+							<button
+								onClick={confirmCreateLobby}
+								className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors"
+							>
+								是，创建房间
+							</button>
+						</div>
+						<label className="flex items-center justify-center gap-2 text-xs text-muted-foreground cursor-pointer">
+							<input
+								type="checkbox"
+								checked={dontShowAgain}
+								onChange={(e) => setDontShowAgain(e.target.checked)}
+								className="accent-primary"
+							/>
+							以后不再显示此提示
+						</label>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

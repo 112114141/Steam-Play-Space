@@ -31,6 +31,8 @@ interface AppSettings {
 	noiseSuppression: boolean;
 	echoCancellation: boolean;
 	autoGainControl: boolean;
+	fileSavePath: string;
+	showRoomConfirm: boolean;
 }
 
 interface AppState {
@@ -79,6 +81,8 @@ const defaultSettings: AppSettings = {
 	noiseSuppression: true,
 	echoCancellation: true,
 	autoGainControl: true,
+	fileSavePath: "",
+	showRoomConfirm: true,
 };
 
 const loadSettings = (): AppSettings => {

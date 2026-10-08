@@ -4,6 +4,8 @@ use steamworks::SendType;
 use tauri::{Emitter, State};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use parking_lot::Mutex;
 use std::thread;
 
 const FILE_CHANNEL: i32 = 2;
@@ -160,9 +162,21 @@ pub async fn send_file_to_lobby(
     Ok(())
 }
 
-pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Client) {
+#[tauri::command]
+pub async fn set_file_save_path(state: State<'_, AppState>, path: String) -> AppResult<()> {
+    let mut p = state.file_save_path.lock();
+    *p = path;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_file_save_path(state: State<'_, AppState>) -> AppResult<String> {
+    let p = state.file_save_path.lock();
+    Ok(p.clone())
+}
+
+pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Client, file_save_path: Arc<Mutex<String>>) {
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
     struct RecvFile {
         name: String,
@@ -202,7 +216,7 @@ pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Cli
                             let mime_type = String::from_utf8_lossy(&data[off+10..off+10+mime_len]).to_string();
 
                             let sender_name = client.friends().get_friend(steam_id).name();
-                            let mut map = receiving.lock().unwrap();
+                            let mut map = receiving.lock();
                             map.insert(file_id, RecvFile {
                                 name: file_name,
                                 size: file_size,
@@ -214,7 +228,7 @@ pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Cli
                         }
                         2 if data.len() >= 9 => {
                             let file_id = u32::from_le_bytes([data[1], data[2], data[3], data[4]]);
-                            let mut map = receiving.lock().unwrap();
+                            let mut map = receiving.lock();
                             if let Some(file) = map.get_mut(&file_id) {
                                 file.data.extend_from_slice(&data[9..]);
                                 let progress = if file.size > 0 {
@@ -230,18 +244,24 @@ pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Cli
                         }
                         3 if data.len() >= 5 => {
                             let file_id = u32::from_le_bytes([data[1], data[2], data[3], data[4]]);
-                            let mut map = receiving.lock().unwrap();
+                            let mut map = receiving.lock();
                             if let Some(file) = map.remove(&file_id) {
-                                let download_dir = dirs::download_dir()
-                                    .unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string())))
-                                    .join("SteamPlaySpace");
-                                let _ = fs::create_dir_all(&download_dir);
-                                let saved_path = download_dir.join(&file.name);
+                                let save_dir = {
+                                    let path = file_save_path.lock();
+                                    if path.is_empty() {
+                                        dirs::desktop_dir()
+                                            .unwrap_or_else(|| PathBuf::from("."))
+                                    } else {
+                                        PathBuf::from(path.as_str())
+                                    }
+                                };
+                                let _ = fs::create_dir_all(&save_dir);
+                                let saved_path = save_dir.join(&file.name);
                                 let saved_path = if saved_path.exists() {
                                     let stem = PathBuf::from(&file.name).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or("file".to_string());
                                     let ext = PathBuf::from(&file.name).extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
                                     let base = if ext.is_empty() { format!("{}_{}", stem, file_id) } else { format!("{}_{}.{}", stem, file_id, ext) };
-                                    download_dir.join(base)
+                                    save_dir.join(base)
                                 } else {
                                     saved_path
                                 };
