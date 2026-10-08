@@ -11,11 +11,11 @@
 
 你和好友都装了 Steam，但游戏只支持局域网联机？没路由器权限做端口转发？朋友在另一个城市？
 
-**Steam Play Space** 利用 Steam 自带的 P2P 网络（SDR 中继）帮你建一条 TCP 隧道，把游戏的局域网流量从 Steam 网络上走过去。对你和好友来说，就像坐在同一个网吧里。
+**Steam Play Space** 利用 Steam 自带的 P2P 网络（SDR 中继）帮你建一条隧道，把游戏的局域网流量从 Steam 网络上走过去。支持 **TCP 和 UDP** 两种协议，自动识别或手动切换。对你和好友来说，就像坐在同一个网吧里。
 
 You and your friends all have Steam, but the game only supports LAN multiplayer? No router access for port forwarding? Friend in another city?
 
-**Steam Play Space** uses Steam's built-in P2P networking (SDR relay) to tunnel TCP LAN traffic over the Steam network. It's like you're all in the same cybercafe.
+**Steam Play Space** uses Steam's built-in P2P networking (SDR relay) to tunnel LAN traffic over the Steam network. It supports both **TCP and UDP** protocols with automatic or manual switching. It's like you're all in the same cybercafe.
 
 ---
 
@@ -23,13 +23,14 @@ You and your friends all have Steam, but the game only supports LAN multiplayer?
 
 | 功能 | 说明 |
 |------|------|
-| 🎮 **一键联机** | 利用 Steam P2P 网络（SDR 中继）建立 TCP 隧道，自动 NAT 穿透 |
+| 🎮 **一键联机** | 利用 Steam P2P 网络（SDR 中继）建立隧道，自动 NAT 穿透 |
 | 📡 **端口自动探测** | 扫描本地监听端口 + 进程名识别，支持搜索过滤 |
 | 🔍 **自动检测** | 开启后游戏内开 LAN 即自动填入端口号，省心 |
+| 🔀 **TCP/UDP 双协议** | 支持 TCP 和 UDP 两种隧道，协议自动切换或手动选择 |
 | 👥 **好友列表** | 查看在线好友，一键加入好友房间或发送邀请 |
 | 📊 **流量可视化** | 实时显示隧道上行 / 下行流量和延迟 |
 | 🔄 **断线自动重连** | P2P 连接断了？自动重连，不用手动操心 |
-| ⚙️ **设置面板** | 端口轮询默认开关、退出最小化到托盘 |
+| ⚙️ **设置面板** | 端口轮询开关、退出最小化到托盘、协议自动切换 |
 | 💬 **内置聊天** | 房间内好友实时聊天，不用切窗口 |
 
 ---
@@ -65,18 +66,22 @@ You and your friends all have Steam, but the game only supports LAN multiplayer?
 
 ## 🎯 支持的游戏 | Supported Games
 
-任何支持局域网（LAN）联机且使用 **TCP 协议**的游戏均可使用：
+任何支持局域网（LAN）联机的游戏均可使用，**TCP 和 UDP 协议都支持**：
 
-| 游戏 | 默认端口 |
-|------|----------|
-| Minecraft Java版 | 25565 |
-| Terraria | 7777 |
-| Project Zomboid | 16261 |
-| Starbound | 21025 |
-| OpenTTD | 3979 |
-| RimWorld (联机Mod) | 25555 |
+| 游戏 | 默认端口 | 协议 |
+|------|----------|------|
+| Minecraft Java版 | 25565 | TCP |
+| Terraria | 7777 | TCP |
+| Project Zomboid | 16261 | TCP |
+| Starbound | 21025 | TCP |
+| OpenTTD | 3979 | UDP |
+| RimWorld (联机Mod) | 25555 | TCP |
+| Valheim | 2456 | UDP |
+| L4D2 (Left 4 Dead 2) | 27015 | UDP |
+| 幻兽帕鲁 (Palworld) | 8211 | UDP |
+| Don't Starve Together | 10999 | UDP |
 
-> ⚠️ **注意**: UDP 游戏暂不支持（如 Valheim、L4D2、幻兽帕鲁），建议使用 Steam Remote Play Together。
+> 💡 **协议自动切换**：默认开启，选中端口时自动判断 TCP/UDP。也可在设置中关闭后手动选择。
 
 ---
 
@@ -120,10 +125,11 @@ Steam-Play-Space/
 ├── src/                # 前端 (React + TS)
 ├── src-tauri/          # 后端 (Rust + Tauri)
 │   └── src/
-│       ├── main.rs         # 入口
-│       ├── app_state.rs    # 状态管理
-│       ├── net_manager.rs  # P2P 隧道核心
-│       └── steam_commands.rs # Tauri 命令
+│       ├── main.rs              # 入口
+│       ├── app_state.rs         # 状态管理
+│       ├── net_manager.rs       # TCP P2P 隧道核心
+│       ├── udp_net_manager.rs   # UDP P2P 隧道核心
+│       └── steam_commands.rs    # Tauri 命令
 ├── steamworks-rs/      # Steamworks SDK 绑定 (本地依赖)
 └── package.json
 ```

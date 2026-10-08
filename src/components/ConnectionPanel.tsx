@@ -82,7 +82,7 @@ export function ConnectionPanel() {
 		}, 2000);
 
 		return () => clearInterval(interval);
-	}, [autoDetect]);
+	}, [autoDetect, settings.autoProtocolSwitch, setLocalPort, setSettings]);
 
 	const isPortListening = portInfos.some((info) => info.port === localPort);
 

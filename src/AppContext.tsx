@@ -164,16 +164,29 @@ export const AppProvider = ({children}: {children: ReactNode}) => {
 			state.currentLobbyId
 		) {
 			toast.loading("连接断开，正在重连...", {id: "reconnect"});
-			invoke("connect_to_host", {
-				hostIdStr: state.lastHostId,
-				localPort: state.localPort
-			})
-				.then(() => {
-					toast.success("重连成功", {id: "reconnect"});
+			if (state.settings.protocol === "UDP") {
+				invoke("start_udp_client", {
+					hostIdStr: state.lastHostId,
+					localPort: state.localPort
 				})
-				.catch(() => {
-					toast.error("重连失败，请手动重试", {id: "reconnect"});
-				});
+					.then(() => {
+						toast.success("重连成功", {id: "reconnect"});
+					})
+					.catch(() => {
+						toast.error("重连失败，请手动重试", {id: "reconnect"});
+					});
+			} else {
+				invoke("connect_to_host", {
+					hostIdStr: state.lastHostId,
+					localPort: state.localPort
+				})
+					.then(() => {
+						toast.success("重连成功", {id: "reconnect"});
+					})
+					.catch(() => {
+						toast.error("重连失败，请手动重试", {id: "reconnect"});
+					});
+			}
 		}
 		wasConnectedRef.current = isConnected;
 	}, [
@@ -181,7 +194,8 @@ export const AppProvider = ({children}: {children: ReactNode}) => {
 		state.networkStatus.isHost,
 		state.lastHostId,
 		state.currentLobbyId,
-		state.localPort
+		state.localPort,
+		state.settings.protocol
 	]);
 
 	useEffect(() => {

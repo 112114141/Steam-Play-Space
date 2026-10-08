@@ -602,6 +602,7 @@ pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
 /// 房主启动 UDP 隧道
 #[tauri::command]
 pub async fn start_udp_host(state: State<'_, AppState>, local_port: u16) -> AppResult<()> {
+    net_manager::stop_network(&state);
     {
         let mut port = state.local_game_port.lock();
         *port = local_port;
@@ -616,6 +617,7 @@ pub async fn start_udp_client(
     host_id_str: String,
     local_port: u16,
 ) -> AppResult<()> {
+    net_manager::stop_network(&state);
     let host_id_u64 = host_id_str
         .parse::<u64>()
         .map_err(|_| AppError::Parse("Invalid Host ID".to_string()))?;

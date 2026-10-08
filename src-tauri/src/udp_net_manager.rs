@@ -18,6 +18,12 @@ pub struct UdpTunnel {
 
 impl UdpTunnel {
     pub fn start_host(state: &AppState, game_port: u16) -> AppResult<Self> {
+        {
+            let token = state.cancel_token.lock();
+            token.cancel();
+        }
+        std::thread::sleep(Duration::from_millis(100));
+
         let cancel = CancellationToken::new();
         {
             let mut token = state.cancel_token.lock();
@@ -116,6 +122,12 @@ impl UdpTunnel {
         host_id: SteamId,
         local_port: u16,
     ) -> AppResult<Self> {
+        {
+            let token = state.cancel_token.lock();
+            token.cancel();
+        }
+        std::thread::sleep(Duration::from_millis(100));
+
         let cancel = CancellationToken::new();
         {
             let mut token = state.cancel_token.lock();

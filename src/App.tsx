@@ -25,7 +25,8 @@ function App() {
 		clearPendingInvite,
 		clearRichPresenceJoin,
 		refreshStatus,
-		hydrated
+		hydrated,
+		settings
 	} = useApp();
 	const {isConnected, statusMessage} = networkStatus;
 
@@ -43,11 +44,18 @@ function App() {
 				lobbyIdStr: lobbyId
 			});
 			toast.loading("正在建立 P2P 隧道...", {id: toastId});
-			await invoke("connect_to_host", {
-				hostIdStr: result.host_id,
-				localPort: localPort
-			});
-			toast.success("隧道已打通!", {id: toastId});
+			if (settings.protocol === "UDP") {
+				await invoke("start_udp_client", {
+					hostIdStr: result.host_id,
+					localPort
+				});
+			} else {
+				await invoke("connect_to_host", {
+					hostIdStr: result.host_id,
+					localPort
+				});
+			}
+			toast.success(`${settings.protocol} 隧道已打通`, {id: toastId});
 			setCurrentLobbyId(result.lobby_id);
 			await refreshStatus();
 		} catch (e: any) {

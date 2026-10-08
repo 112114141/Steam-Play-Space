@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function FriendList({isOpen, onClose}: Props) {
-	const {localPort, setCurrentLobbyId, setLastHostId, refreshStatus} = useApp();
+	const {localPort, setCurrentLobbyId, setLastHostId, refreshStatus, settings} = useApp();
 	const [friends, setFriends] = useState<FriendInfo[]>([]);
 	const [filter, setFilter] = useState("");
 	const [gameNames, setGameNames] = useState<Record<number, string>>({});
@@ -65,13 +65,20 @@ export function FriendList({isOpen, onClose}: Props) {
 		if (!friend.lobby_id) return;
 		try {
 			toast.loading(`加入 ${friend.name} 的房间...`, {id: "join-friend"});
-			const result = await invoke<JoinLobbyResult>("join_lobby", {
-				lobbyIdStr: friend.lobby_id
+		const result = await invoke<JoinLobbyResult>("join_lobby", {
+			lobbyIdStr: friend.lobby_id
+		});
+		if (settings.protocol === "UDP") {
+			await invoke("start_udp_client", {
+				hostIdStr: result.host_id,
+				localPort
 			});
+		} else {
 			await invoke("connect_to_host", {
 				hostIdStr: result.host_id,
 				localPort
 			});
+		}
 			toast.success(`已加入 ${friend.name} 的房间`, {
 				icon: "🚀",
 				id: "join-friend"
