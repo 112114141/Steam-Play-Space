@@ -9,11 +9,11 @@
 
 ## 📖 简介 | Introduction
 
-🇨🇳 你和好友都装了 Steam，但游戏只支持局域网联机？没路由器权限做端口转发？朋友在另一个城市？
+你和好友都装了 Steam，但游戏只支持局域网联机？没路由器权限做端口转发？朋友在另一个城市？
 
 **Steam Play Space** 利用 Steam 自带的 P2P 网络（SDR 中继）帮你建一条 TCP 隧道，把游戏的局域网流量从 Steam 网络上走过去。对你和好友来说，就像坐在同一个网吧里。
 
-🇺🇸 You and your friends all have Steam, but the game only supports LAN multiplayer? No router access for port forwarding? Friend in another city?
+You and your friends all have Steam, but the game only supports LAN multiplayer? No router access for port forwarding? Friend in another city?
 
 **Steam Play Space** uses Steam's built-in P2P networking (SDR relay) to tunnel TCP LAN traffic over the Steam network. It's like you're all in the same cybercafe.
 
