@@ -25,6 +25,12 @@ interface AppSettings {
 	minimizeToTray: boolean;
 	autoProtocolSwitch: boolean;
 	protocol: "TCP" | "UDP";
+	micDeviceId: string;
+	speakerDeviceId: string;
+	micVolume: number;
+	noiseSuppression: boolean;
+	echoCancellation: boolean;
+	autoGainControl: boolean;
 }
 
 interface AppState {
@@ -66,7 +72,13 @@ const defaultSettings: AppSettings = {
 	autoDetectDefault: true,
 	minimizeToTray: true,
 	autoProtocolSwitch: true,
-	protocol: "TCP"
+	protocol: "TCP",
+	micDeviceId: "",
+	speakerDeviceId: "",
+	micVolume: 100,
+	noiseSuppression: true,
+	echoCancellation: true,
+	autoGainControl: true,
 };
 
 const loadSettings = (): AppSettings => {

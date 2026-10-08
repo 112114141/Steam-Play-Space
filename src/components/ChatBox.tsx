@@ -1,8 +1,11 @@
-import {invoke} from "@tauri-apps/api/core";
+import {invoke, convertFileSrc} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
-import {MessageCircle, Send} from "lucide-react";
+import {open} from "@tauri-apps/plugin-dialog";
+import {openPath} from "@tauri-apps/plugin-opener";
+import {FileText, Image, MessageCircle, Send, Download} from "lucide-react";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Virtuoso} from "react-virtuoso";
+import {VoicePanel} from "./VoicePanel";
 
 interface ChatMessage {
 	sender_id: string;
@@ -11,34 +14,89 @@ interface ChatMessage {
 	timestamp: string;
 }
 
+interface FileMessage {
+	file_id: number;
+	file_name: string;
+	file_size: number;
+	mime_type: string;
+	sender_id: string;
+	sender_name: string;
+	is_image: boolean;
+	timestamp: string;
+	saved_path: string;
+}
+
+interface ProgressInfo {
+	progress: number;
+	file_name: string;
+	direction: string;
+}
+
+type UnifiedMsg =
+	| {kind: "text"; data: ChatMessage}
+	| {kind: "file"; data: FileMessage};
+
+function formatSize(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1073741824) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
 export function ChatBox() {
-	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [messages, setMessages] = useState<UnifiedMsg[]>([]);
 	const [input, setInput] = useState("");
 	const [myId, setMyId] = useState<string | null>(null);
 	const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+	const [progressMap, setProgressMap] = useState<Map<number, ProgressInfo>>(new Map());
 	const virtuosoRef = useRef<any>(null);
 
 	useEffect(() => {
 		invoke<string>("get_local_user_id").then(setMyId).catch(console.error);
 		invoke<ChatMessage[]>("get_chat_history")
-			.then((history) =>
-				setMessages(
-					history.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-				)
-			)
+			.then((history) => {
+				const sorted = history.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+				setMessages(sorted.map((d) => ({kind: "text", data: d})));
+			})
 			.catch(console.error);
 	}, []);
 
 	useEffect(() => {
-		const unlisten = listen<ChatMessage>("chat-message", (event) => {
+		const unlistenText = listen<ChatMessage>("chat-message", (event) => {
 			setMessages((prev) => {
-				const next = [...prev, event.payload];
-				next.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+				const next: UnifiedMsg[] = [...prev, {kind: "text", data: event.payload}];
+				next.sort((a, b) => a.data.timestamp.localeCompare(b.data.timestamp));
 				return next;
 			});
 		});
+		const unlistenFile = listen<FileMessage>("chat-file", (event) => {
+			setMessages((prev) => {
+				const next: UnifiedMsg[] = [...prev, {kind: "file", data: event.payload}];
+				next.sort((a, b) => a.data.timestamp.localeCompare(b.data.timestamp));
+				return next;
+			});
+		});
+		const unlistenProgress = listen<{file_id: number; progress: number; file_name: string; direction: string}>("file-progress", (event) => {
+			const {file_id, progress, file_name, direction} = event.payload;
+			setProgressMap((prev) => {
+				const next = new Map(prev);
+				next.set(file_id, {progress, file_name, direction});
+				return next;
+			});
+			if (progress >= 100) {
+				setTimeout(() => {
+					setProgressMap((prev) => {
+						const next = new Map(prev);
+						next.delete(file_id);
+						return next;
+					});
+				}, 1500);
+			}
+		});
 		return () => {
-			unlisten.then((fn) => fn());
+			unlistenText.then((fn) => fn());
+			unlistenFile.then((fn) => fn());
+			unlistenProgress.then((fn) => fn());
 		};
 	}, []);
 
@@ -60,15 +118,36 @@ export function ChatBox() {
 		}
 	};
 
+	const handleSendFile = async () => {
+		try {
+			const filePath = await open({multiple: false});
+			if (!filePath || typeof filePath !== "string") return;
+			await invoke("send_file_to_lobby", {filePath});
+		} catch (e) {
+			console.error("发送文件失败", e);
+		}
+	};
+
+	const handleSendImage = async () => {
+		try {
+			const imagePath = await open({
+				multiple: false,
+				filters: [{name: "图片", extensions: ["png", "jpg", "jpeg", "gif", "bmp", "webp"]}],
+			});
+			if (!imagePath || typeof imagePath !== "string") return;
+			await invoke("send_file_to_lobby", {filePath: imagePath});
+		} catch (e) {
+			console.error("发送图片失败", e);
+		}
+	};
+
 	const isSelf = (id: string) => myId !== null && id === myId;
 
 	const itemContent = useCallback(
-		(_index: number, msg: ChatMessage) => {
-			const self = isSelf(msg.sender_id);
+		(_index: number, msg: UnifiedMsg) => {
+			const self = isSelf(msg.data.sender_id);
 			return (
-				<div
-					className={`flex flex-col px-6 py-1.5 ${self ? "items-end" : "items-start"}`}
-				>
+				<div className={`flex flex-col px-6 py-1.5 ${self ? "items-end" : "items-start"}`}>
 					<span
 						className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold mb-1 ${
 							self
@@ -76,20 +155,63 @@ export function ChatBox() {
 								: "bg-muted-foreground/10 text-muted-foreground"
 						}`}
 					>
-						{self ? "我" : msg.sender_name}
+						{self ? "我" : msg.data.sender_name}
 						<span className="ml-1.5 font-normal opacity-50">
-							{msg.timestamp}
+							{msg.data.timestamp}
 						</span>
 					</span>
-					<div
-						className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-							self
-								? "bg-primary/20 text-foreground rounded-br-md"
-								: "bg-muted rounded-bl-md"
-						}`}
-					>
-						<p className="text-sm break-words">{msg.text}</p>
-					</div>
+					{msg.kind === "text" ? (
+						<div
+							className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+								self
+									? "bg-primary/20 text-foreground rounded-br-md"
+									: "bg-muted rounded-bl-md"
+							}`}
+						>
+							<p className="text-sm break-words">{msg.data.text}</p>
+						</div>
+					) : msg.data.is_image ? (
+						<div
+							className={`max-w-[75%] rounded-2xl p-2 ${
+								self
+									? "bg-primary/20 rounded-br-md"
+									: "bg-muted rounded-bl-md"
+							}`}
+						>
+							<img
+								src={convertFileSrc(msg.data.saved_path)}
+								alt={msg.data.file_name}
+								className="rounded-xl max-w-full max-h-64 cursor-pointer object-contain"
+								onClick={() => openPath(msg.data.saved_path).catch(console.error)}
+							/>
+							<p className="text-[10px] text-muted-foreground mt-1 px-1">
+								{msg.data.file_name} · {formatSize(msg.data.file_size)}
+							</p>
+						</div>
+					) : (
+						<div
+							className={`max-w-[75%] rounded-2xl px-4 py-3 flex items-center gap-3 ${
+								self
+									? "bg-primary/20 rounded-br-md"
+									: "bg-muted rounded-bl-md"
+							}`}
+						>
+							<div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+								<FileText className="w-5 h-5 text-primary" />
+							</div>
+							<div className="flex-1 min-w-0">
+								<p className="text-sm font-bold truncate">{msg.data.file_name}</p>
+								<p className="text-[10px] text-muted-foreground">{formatSize(msg.data.file_size)}</p>
+							</div>
+							<button
+								onClick={() => openPath(msg.data.saved_path).catch(console.error)}
+								className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-bold hover:bg-primary/20 transition-colors active:scale-95 shrink-0"
+							>
+								<Download className="w-3 h-3" />
+								打开
+							</button>
+						</div>
+					)}
 				</div>
 			);
 		},
@@ -98,7 +220,6 @@ export function ChatBox() {
 
 	return (
 		<div className="rounded-2xl bg-muted/30 border border-border overflow-hidden flex flex-col relative">
-			{/* Disclaimer modal - 仅首次 */}
 			{!disclaimerAccepted && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl p-6">
 					<div className="text-center space-y-4 max-w-xs">
@@ -106,9 +227,7 @@ export function ChatBox() {
 							<MessageCircle className="w-6 h-6 text-amber-500" />
 						</div>
 						<div>
-							<h3 className="text-sm font-bold text-foreground mb-1">
-								大厅聊天须知
-							</h3>
+							<h3 className="text-sm font-bold text-foreground mb-1">大厅聊天须知</h3>
 							<p className="text-xs text-muted-foreground leading-relaxed">
 								Steam 聊天消息通过服务器广播，
 								<b className="text-foreground">同房间所有人都能看到</b>。
@@ -123,9 +242,7 @@ export function ChatBox() {
 							</p>
 						</div>
 						<button
-							onClick={() => {
-								setDisclaimerAccepted(true);
-							}}
+							onClick={() => setDisclaimerAccepted(true)}
 							className="h-10 px-6 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors active:scale-95"
 						>
 							知道了
@@ -134,13 +251,11 @@ export function ChatBox() {
 				</div>
 			)}
 
-			{/* Header */}
 			<div className="flex items-center gap-2 px-6 pt-4 pb-3 text-xs text-muted-foreground uppercase tracking-wider font-bold">
 				<MessageCircle className="w-4 h-4" />
 				大厅聊天
 			</div>
 
-			{/* Messages (虚拟列表) */}
 			{messages.length === 0 ? (
 				<div className="flex items-center justify-center h-[300px] text-xs text-muted-foreground/60 italic">
 					暂无消息
@@ -157,8 +272,42 @@ export function ChatBox() {
 				/>
 			)}
 
-			{/* Input */}
+			{progressMap.size > 0 && (
+				<div className="px-6 py-1.5 space-y-1 border-t border-border/50">
+					{Array.from(progressMap.entries()).map(([id, info]) => (
+						<div key={id} className="flex items-center gap-2 text-[10px]">
+							<span className="text-muted-foreground truncate max-w-[150px]">
+								{info.direction === "send" ? "↑" : "↓"} {info.file_name}
+							</span>
+							<div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+								<div
+									className="h-full bg-primary rounded-full transition-all"
+									style={{width: `${info.progress}%`}}
+								/>
+							</div>
+							<span className="text-muted-foreground w-8 text-right">{info.progress}%</span>
+						</div>
+					))}
+				</div>
+			)}
+
+			<VoicePanel />
+
 			<div className="flex items-center gap-2 px-6 py-3 border-t border-border">
+				<button
+					onClick={handleSendImage}
+					className="w-10 h-10 flex items-center justify-center rounded-xl bg-muted/50 text-foreground hover:bg-muted transition-colors active:scale-95 shrink-0"
+					title="发送图片"
+				>
+					<Image className="w-4 h-4" />
+				</button>
+				<button
+					onClick={handleSendFile}
+					className="w-10 h-10 flex items-center justify-center rounded-xl bg-muted/50 text-foreground hover:bg-muted transition-colors active:scale-95 shrink-0"
+					title="发送文件"
+				>
+					<FileText className="w-4 h-4" />
+				</button>
 				<input
 					value={input}
 					onChange={(e) => setInput(e.target.value)}

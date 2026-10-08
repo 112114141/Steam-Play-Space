@@ -46,21 +46,22 @@ jobs:
           jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
           jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
-      - name: Delete existing release
+      - name: Check if release exists
+        id: check_release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            RELEASE_ID=$(gh release view "$TAG" --json id -q .id)
-            gh api -X DELETE /repos/${{ github.repository }}/releases/$RELEASE_ID
-            echo "Deleted existing release $TAG (ID: $RELEASE_ID)"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release $TAG already exists, skipping build"
           else
-            echo "No existing release for $TAG"
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and publish release
+        if: steps.check_release.outputs.exists != 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

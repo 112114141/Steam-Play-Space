@@ -12,6 +12,7 @@ use std::sync::Arc;
 use steamworks::networking_sockets::NetConnection;
 use steamworks::{Client, LobbyId, SteamId};
 use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicBool;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +49,7 @@ pub struct AppState {
     pub chat_history: Arc<Mutex<CircularQueue<ChatMessage>>>,
     pub bytes_sent: Arc<AtomicU64>,
     pub bytes_received: Arc<AtomicU64>,
+    pub voice_active: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -69,6 +71,7 @@ impl AppState {
             chat_history: Arc::new(Mutex::new(CircularQueue::with_capacity(200))),
             bytes_sent: Arc::new(AtomicU64::new(0)),
             bytes_received: Arc::new(AtomicU64::new(0)),
+            voice_active: Arc::new(AtomicBool::new(false)),
         })
     }
 }

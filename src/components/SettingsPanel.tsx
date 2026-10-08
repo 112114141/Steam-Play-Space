@@ -1,6 +1,7 @@
 import {invoke} from "@tauri-apps/api/core";
-import {Radar, Minimize2, X, Settings, ArrowLeftRight} from "lucide-react";
+import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves} from "lucide-react";
 import {useApp} from "../AppContext";
+import {useEffect, useState} from "react";
 
 interface Props {
 	isOpen: boolean;
@@ -9,6 +10,24 @@ interface Props {
 
 export function SettingsPanel({isOpen, onClose}: Props) {
 	const {settings, setSettings} = useApp();
+	const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+	const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+
+	const refreshDevices = async () => {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+			stream.getTracks().forEach((t) => t.stop());
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			setAudioInputs(devices.filter((d) => d.kind === "audioinput"));
+			setAudioOutputs(devices.filter((d) => d.kind === "audiooutput"));
+		} catch (e) {
+			console.error("获取设备列表失败:", e);
+		}
+	};
+
+	useEffect(() => {
+		if (isOpen) refreshDevices();
+	}, [isOpen]);
 
 	if (!isOpen) return null;
 
@@ -166,6 +185,110 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 						</p>
 						<p className="text-[11px] text-muted-foreground leading-relaxed">
 							自动切换通过 netstat 检测端口协议类型，准确率约 90%。同端口有 TCP+UDP 时优先 TCP。
+						</p>
+					</div>
+				</div>
+
+				<div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+					<div className="flex items-center gap-3">
+						<Mic className="w-5 h-5 text-primary" />
+						<div className="flex-1">
+							<p className="text-sm font-bold text-foreground">语音设置</p>
+							<p className="text-xs text-muted-foreground">麦克风、扬声器、降噪</p>
+						</div>
+						<button
+							onClick={refreshDevices}
+							className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+						>
+							<RefreshCw className="w-3 h-3" />
+							刷新
+						</button>
+					</div>
+
+					<div className="space-y-2 pt-2 border-t border-border">
+						<div>
+							<label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">麦克风</label>
+							<select
+								value={settings.micDeviceId}
+								onChange={(e) => setSettings({micDeviceId: e.target.value})}
+								className="w-full h-9 mt-1 px-3 rounded-lg bg-card border border-border text-xs text-foreground outline-none focus:border-primary/50"
+							>
+								<option value="">系统默认</option>
+								{audioInputs.map((d) => (
+									<option key={d.deviceId} value={d.deviceId}>{d.label || `设备 ${d.deviceId.slice(0, 8)}`}</option>
+								))}
+							</select>
+						</div>
+
+						<div>
+							<label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">扬声器</label>
+							<select
+								value={settings.speakerDeviceId}
+								onChange={(e) => setSettings({speakerDeviceId: e.target.value})}
+								className="w-full h-9 mt-1 px-3 rounded-lg bg-card border border-border text-xs text-foreground outline-none focus:border-primary/50"
+							>
+								<option value="">系统默认</option>
+								{audioOutputs.map((d) => (
+									<option key={d.deviceId} value={d.deviceId}>{d.label || `设备 ${d.deviceId.slice(0, 8)}`}</option>
+								))}
+							</select>
+						</div>
+
+						<div>
+							<div className="flex items-center justify-between">
+								<label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">麦克风音量</label>
+								<span className="text-[10px] text-primary font-bold">{settings.micVolume}%</span>
+							</div>
+							<input
+								type="range"
+								min="0"
+								max="200"
+								value={settings.micVolume}
+								onChange={(e) => setSettings({micVolume: parseInt(e.target.value)})}
+								className="w-full mt-1 accent-primary"
+							/>
+						</div>
+					</div>
+
+					<div className="space-y-2 pt-2 border-t border-border">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<Waves className="w-4 h-4 text-primary" />
+								<span className="text-xs font-bold text-foreground">回声消除</span>
+							</div>
+							<button
+								onClick={() => setSettings({echoCancellation: !settings.echoCancellation})}
+								className={`w-10 h-6 rounded-full transition-colors relative ${settings.echoCancellation ? "bg-primary" : "bg-muted-foreground/30"}`}
+							>
+								<div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings.echoCancellation ? "translate-x-5" : "translate-x-1"}`} />
+							</button>
+						</div>
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<Waves className="w-4 h-4 text-primary" />
+								<span className="text-xs font-bold text-foreground">降噪</span>
+							</div>
+							<button
+								onClick={() => setSettings({noiseSuppression: !settings.noiseSuppression})}
+								className={`w-10 h-6 rounded-full transition-colors relative ${settings.noiseSuppression ? "bg-primary" : "bg-muted-foreground/30"}`}
+							>
+								<div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings.noiseSuppression ? "translate-x-5" : "translate-x-1"}`} />
+							</button>
+						</div>
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<Volume2 className="w-4 h-4 text-primary" />
+								<span className="text-xs font-bold text-foreground">自动增益</span>
+							</div>
+							<button
+								onClick={() => setSettings({autoGainControl: !settings.autoGainControl})}
+								className={`w-10 h-6 rounded-full transition-colors relative ${settings.autoGainControl ? "bg-primary" : "bg-muted-foreground/30"}`}
+							>
+								<div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${settings.autoGainControl ? "translate-x-5" : "translate-x-1"}`} />
+							</button>
+						</div>
+						<p className="text-[10px] text-muted-foreground/70 leading-relaxed pt-1">
+							降噪/回声消除/自动增益由浏览器原生实现，性能开销极小。关闭可降低延迟但音质可能下降。
 						</p>
 					</div>
 				</div>

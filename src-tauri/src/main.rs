@@ -4,7 +4,7 @@ use circular_queue::CircularQueue;
 use log::{Level, LevelFilter, Metadata, Record};
 use steam_play_space_lib::{
     app_state::{AppState, ChatMessage, LogEntry},
-    chat, net_manager, steam_commands, steam_utils,
+    chat, file_transfer, net_manager, steam_commands, steam_utils, voice,
 };
 use native_dialog::{MessageDialog, MessageType};
 use parking_lot::Mutex;
@@ -519,10 +519,18 @@ async fn main() {
         log::info!("Steam 回调线程已关闭。");
     });
 
+    let client_for_file = app_state.steam_client.clone();
+    let client_for_voice = app_state.steam_client.clone();
+
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             *LOGGER.app_handle.lock() = Some(app.handle().clone());
             drain_pending_events();
+
+            let handle = app.handle().clone();
+            file_transfer::start_file_receiver(handle.clone(), client_for_file);
+            voice::start_voice_receiver(handle, client_for_voice);
 
             // 系统托盘 - 右键传坐标，前端自定义菜单
             TrayIconBuilder::new()
@@ -613,6 +621,12 @@ async fn main() {
             steam_commands::stop_udp_tunnel,
             chat::send_chat_message,
             chat::get_chat_history,
+            file_transfer::send_file_to_lobby,
+            voice::send_voice_data,
+            voice::join_voice,
+            voice::leave_voice,
+            voice::is_voice_active,
+            voice::get_voice_users,
             open_log_window,
             get_log_history,
             get_memory_usage,
