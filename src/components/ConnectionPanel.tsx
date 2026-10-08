@@ -33,18 +33,51 @@ export function ConnectionPanel() {
 	const [autoDetect, setAutoDetect] = useState(settings.autoDetectDefault);
 	const prevPortsRef = useRef<Set<number>>(new Set());
 
+	const loadKnownPorts = (): Set<number> => {
+		const saved = localStorage.getItem("p2p_known_ports");
+		if (saved) {
+			try {
+				return new Set(JSON.parse(saved) as number[]);
+			} catch {
+				return new Set();
+			}
+		}
+		return new Set();
+	};
+
+	const saveKnownPorts = (ports: Set<number>) => {
+		localStorage.setItem("p2p_known_ports", JSON.stringify([...ports]));
+	};
+
 	const scanPorts = useCallback(async () => {
 		setScanning(true);
 		try {
 			const infos = await invoke<PortProcessInfo[]>("scan_local_ports");
 			setPortInfos(infos);
-			prevPortsRef.current = new Set(infos.map((i) => i.port));
+
+			const knownPorts = loadKnownPorts();
+			const currentPortSet = new Set(infos.map((i) => i.port));
+
+			if (autoDetect && knownPorts.size > 0) {
+				const newPorts = infos.filter((i) => !knownPorts.has(i.port));
+				if (newPorts.length > 0) {
+					const first = newPorts[0];
+					setLocalPort(first.port);
+					if (settings.autoProtocolSwitch) {
+						setSettings({protocol: first.protocol === "UDP" ? "UDP" : "TCP"});
+					}
+					toast.success(`检测到新端口 ${first.port} (${first.process_name})`, {icon: "📡"});
+				}
+			}
+
+			prevPortsRef.current = currentPortSet;
+			saveKnownPorts(currentPortSet);
 		} catch (e) {
 			console.error("端口扫描失败:", e);
 		} finally {
 			setScanning(false);
 		}
-	}, []);
+	}, [autoDetect, settings.autoProtocolSwitch, setLocalPort, setSettings]);
 
 	useEffect(() => {
 		scanPorts();
@@ -76,6 +109,7 @@ export function ConnectionPanel() {
 				}
 
 				prevPortsRef.current = currentPortSet;
+				saveKnownPorts(currentPortSet);
 			} catch (e) {
 				console.error("自动检测失败:", e);
 			}
