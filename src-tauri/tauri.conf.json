@@ -39,6 +39,7 @@
 		"resources": ["steam_api64.dll", "steam_appid.txt"],
 		"windows": {
 			"nsis": {
+				"installerIcon": "icons/icon.ico",
 				"languages": ["SimpChinese"]
 			},
 			"wix": {
