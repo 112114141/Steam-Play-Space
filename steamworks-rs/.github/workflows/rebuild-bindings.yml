@@ -1,0 +1,96 @@
+name: Rebuild bindings
+
+on: 
+  workflow_dispatch:
+  push:
+    paths:
+      - "steamworks-sys"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        id: toolchain
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+          override: true
+
+      - name: Install alsa and udev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
+        if: runner.os == 'linux'
+
+      - name: Setup cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-test-rustc-${{ steps.toolchain.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: cargo build --features "rebuild-bindings"
+        working-directory: steamworks-sys
+        env:
+          STEAM_SDK_LOCATION: ./lib/steam
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-bindings
+          path: steamworks-sys/src/linux_bindings.rs
+        if: matrix.os == 'ubuntu-latest'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-arm-bindings
+          path: steamworks-sys/src/linuxarm_bindings.rs
+        if: matrix.os == 'ubuntu-22.04-arm'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-macos-bindings
+          path: steamworks-sys/src/macos_bindings.rs
+        if: matrix.os == 'macos-latest'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-windows-bindings
+          path: steamworks-sys/src/windows_bindings.rs
+        if: matrix.os == 'windows-latest'
+
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download generated bindings
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifact-*-bindings
+          path: steamworks-sys/src/
+          merge-multiple: true
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add steamworks-sys/src/*_bindings.rs
+          git commit -m "Update bindings" || echo "No changes to commit"
+      
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: ${{ github.ref }}
