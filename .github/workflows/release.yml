@@ -53,9 +53,9 @@ jobs:
         with:
           tauriScript: pnpm tauri
           tagName: ${{ github.ref_name }}
-          releaseName: Steam P2P Tunnel ${{ github.ref_name }}
+          releaseName: Steam Play Space ${{ github.ref_name }}
           releaseBody: |
-            Automated build from ${{ github.ref_name }}.
+            基于 Steam P2P 网络的局域网联机工具 | LAN tunneling via Steam P2P networking
           releaseDraft: false
           prerelease: false
           generateReleaseNotes: true
