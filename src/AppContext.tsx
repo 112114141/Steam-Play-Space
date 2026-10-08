@@ -23,6 +23,8 @@ interface InvitePayload {
 interface AppSettings {
 	autoDetectDefault: boolean;
 	minimizeToTray: boolean;
+	autoProtocolSwitch: boolean;
+	protocol: "TCP" | "UDP";
 }
 
 interface AppState {
@@ -62,7 +64,9 @@ const initialNetworkStatus: NetworkStatus = {
 
 const defaultSettings: AppSettings = {
 	autoDetectDefault: true,
-	minimizeToTray: true
+	minimizeToTray: true,
+	autoProtocolSwitch: true,
+	protocol: "TCP"
 };
 
 const loadSettings = (): AppSettings => {

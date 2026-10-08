@@ -1,4 +1,4 @@
-import {Radar, Minimize2, X, Settings} from "lucide-react";
+import {Radar, Minimize2, X, Settings, ArrowLeftRight} from "lucide-react";
 import {useApp} from "../AppContext";
 
 interface Props {
@@ -95,6 +95,78 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 							}`}
 						/>
 					</button>
+				</div>
+
+				<div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-3">
+							<ArrowLeftRight className="w-5 h-5 text-primary" />
+							<div>
+								<p className="text-sm font-bold text-foreground">
+									协议自动切换
+								</p>
+								<p className="text-xs text-muted-foreground">
+									根据端口类型自动选择 TCP/UDP
+								</p>
+							</div>
+						</div>
+						<button
+							onClick={() =>
+								setSettings({autoProtocolSwitch: !settings.autoProtocolSwitch})
+							}
+							className={`w-12 h-7 rounded-full transition-colors relative ${
+								settings.autoProtocolSwitch
+									? "bg-primary"
+									: "bg-muted-foreground/30"
+							}`}
+						>
+							<div
+								className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+									settings.autoProtocolSwitch
+										? "translate-x-6"
+										: "translate-x-1"
+								}`}
+							/>
+						</button>
+					</div>
+
+					{!settings.autoProtocolSwitch && (
+						<div className="flex items-center gap-2 pt-2 border-t border-border">
+							<span className="text-xs text-muted-foreground">手动选择:</span>
+							<button
+								onClick={() => setSettings({protocol: "TCP"})}
+								className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+									settings.protocol === "TCP"
+										? "bg-green-500/20 text-green-500"
+										: "bg-muted/30 text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								TCP
+							</button>
+							<button
+								onClick={() => setSettings({protocol: "UDP"})}
+								className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+									settings.protocol === "UDP"
+										? "bg-orange-400/20 text-orange-400"
+										: "bg-muted/30 text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								UDP
+							</button>
+						</div>
+					)}
+
+					<div className="pt-2 border-t border-border space-y-1.5">
+						<p className="text-[11px] text-muted-foreground leading-relaxed">
+							<span className="text-green-500 font-bold">TCP</span>：可靠传输，保证数据送达和顺序。适用于大多数游戏（Minecraft、Terraria、Project Zomboid 等）。
+						</p>
+						<p className="text-[11px] text-muted-foreground leading-relaxed">
+							<span className="text-orange-400 font-bold">UDP</span>：不可靠传输，低延迟但不保证送达。适用于 UDP 游戏（Valheim、L4D2、幻兽帕鲁 等）。
+						</p>
+						<p className="text-[11px] text-muted-foreground leading-relaxed">
+							自动切换通过 netstat 检测端口协议类型，准确率约 90%。同端口有 TCP+UDP 时优先 TCP。
+						</p>
+					</div>
 				</div>
 			</div>
 		</>

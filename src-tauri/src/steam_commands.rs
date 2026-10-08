@@ -500,38 +500,46 @@ pub struct PortProcessInfo {
     pub port: u16,
     pub pid: u32,
     pub process_name: String,
+    pub protocol: String,
 }
 
-/// 扫描本地正在监听的 TCP 端口及其所属进程名
+/// 扫描本地正在监听的 TCP/UDP 端口及其所属进程名
 #[tauri::command]
 pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
     let netstat_output = std::process::Command::new("netstat")
-        .args(["-ano", "-p", "TCP"])
+        .args(["-ano"])
         .creation_flags(0x08000000)
         .output()
         .map_err(|e| AppError::Internal(format!("netstat 执行失败: {}", e)))?;
 
     let netstat_stdout = String::from_utf8_lossy(&netstat_output.stdout);
-    let mut port_pid_list: Vec<(u16, u32)> = Vec::new();
+    let mut port_pid_proto_list: Vec<(u16, u32, String)> = Vec::new();
 
     for line in netstat_stdout.lines() {
-        if line.contains("LISTENING") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 5 {
-                if let Some(port_str) = parts[1].rsplit(':').next() {
-                    if let Ok(port) = port_str.parse::<u16>() {
-                        if let Ok(pid) = parts[4].parse::<u32>() {
-                            if port > 0 {
-                                port_pid_list.push((port, pid));
-                            }
-                        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        let proto = parts[0].to_uppercase();
+        if proto != "TCP" && proto != "UDP" {
+            continue;
+        }
+        let is_listening = parts.iter().any(|&p| p == "LISTENING");
+        if proto == "TCP" && !is_listening {
+            continue;
+        }
+        if let Some(port_str) = parts[1].rsplit(':').next() {
+            if let Ok(port) = port_str.parse::<u16>() {
+                if port > 0 {
+                    if let Ok(pid) = parts[parts.len() - 1].parse::<u32>() {
+                        port_pid_proto_list.push((port, pid, proto));
                     }
                 }
             }
         }
     }
 
-    if port_pid_list.is_empty() {
+    if port_pid_proto_list.is_empty() {
         return Ok(Vec::new());
     }
 
@@ -556,11 +564,23 @@ pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
         }
     }
 
-    let mut result = Vec::new();
+    let mut result: Vec<PortProcessInfo> = Vec::new();
     let mut seen_ports = std::collections::HashSet::new();
+    let mut tcp_ports = std::collections::HashSet::new();
 
-    for (port, pid) in &port_pid_list {
+    for (port, _, proto) in &port_pid_proto_list {
+        if proto == "TCP" {
+            tcp_ports.insert(*port);
+        }
+    }
+
+    for (port, pid, proto) in &port_pid_proto_list {
         if seen_ports.contains(port) {
+            if proto == "TCP" {
+                if let Some(entry) = result.iter_mut().find(|e| e.port == *port) {
+                    entry.protocol = "TCP".to_string();
+                }
+            }
             continue;
         }
         seen_ports.insert(*port);
@@ -572,9 +592,46 @@ pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
             port: *port,
             pid: *pid,
             process_name,
+            protocol: proto.clone(),
         });
     }
 
     result.sort_by_key(|info| info.port);
     Ok(result)
+}
+/// 房主启动 UDP 隧道
+#[tauri::command]
+pub async fn start_udp_host(state: State<'_, AppState>, local_port: u16) -> AppResult<()> {
+    {
+        let mut port = state.local_game_port.lock();
+        *port = local_port;
+    }
+    crate::udp_net_manager::start_udp_host(&state, local_port).map(|_| ())
+}
+
+/// 好友连接 UDP 隧道
+#[tauri::command]
+pub async fn start_udp_client(
+    state: State<'_, AppState>,
+    host_id_str: String,
+    local_port: u16,
+) -> AppResult<()> {
+    let host_id_u64 = host_id_str
+        .parse::<u64>()
+        .map_err(|_| AppError::Parse("Invalid Host ID".to_string()))?;
+    let host_id = SteamId::from_raw(host_id_u64);
+    let my_id = state.steam_client.user().steam_id();
+    if host_id != my_id {
+        crate::udp_net_manager::start_udp_client(&state, host_id, local_port).map(|_| ())
+    } else {
+        Err(AppError::Network(
+            "Cannot connect to yourself. You are the host.".to_string(),
+        ))
+    }
+}
+
+/// 停止 UDP 隧道
+#[tauri::command]
+pub fn stop_udp_tunnel(state: State<'_, AppState>) {
+    crate::udp_net_manager::stop_udp_tunnel(&state);
 }

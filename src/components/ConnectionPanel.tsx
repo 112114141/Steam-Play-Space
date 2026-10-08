@@ -18,10 +18,11 @@ interface PortProcessInfo {
 	port: number;
 	pid: number;
 	process_name: string;
+	protocol: string;
 }
 
 export function ConnectionPanel() {
-	const {localPort, setLocalPort, setCurrentLobbyId, refreshStatus, setLastHostId, settings} = useApp();
+	const {localPort, setLocalPort, setCurrentLobbyId, refreshStatus, setLastHostId, settings, setSettings} = useApp();
 	const [lobbyIdInput, setLobbyIdInput] = useState(
 		() => localStorage.getItem("p2p_last_lobby_id") || ""
 	);
@@ -65,6 +66,9 @@ export function ConnectionPanel() {
 				if (newPorts.length > 0) {
 					const first = newPorts[0];
 					setLocalPort(first.port);
+					if (settings.autoProtocolSwitch) {
+						setSettings({protocol: first.protocol === "UDP" ? "UDP" : "TCP"});
+					}
 					toast.success(
 						`检测到新端口 ${first.port} (${first.process_name})`,
 						{icon: "📡"}
@@ -98,8 +102,12 @@ export function ConnectionPanel() {
 			toast.loading("创建 Steam 房间...", {id: toastId});
 			const id = await invoke<string>("create_lobby");
 			toast.loading("启动 P2P 监听...", {id: toastId});
-			await invoke("start_hosting", {localPort});
-			toast.success("房间创建成功", {icon: "🎮", id: toastId});
+			if (settings.protocol === "UDP") {
+				await invoke("start_udp_host", {localPort});
+			} else {
+				await invoke("start_hosting", {localPort});
+			}
+			toast.success(`${settings.protocol} 房间创建成功`, {icon: "🎮", id: toastId});
 			setCurrentLobbyId(id);
 			await refreshStatus();
 		} catch (e: any) {
@@ -127,11 +135,18 @@ export function ConnectionPanel() {
 				lobbyIdStr: lobbyIdInput
 			});
 			toast.loading("建立 P2P 隧道...", {id: toastId});
-			await invoke("connect_to_host", {
-				hostIdStr: result.host_id,
-				localPort
-			});
-			toast.success("隧道已打通", {icon: "🚀", id: toastId});
+			if (settings.protocol === "UDP") {
+				await invoke("start_udp_client", {
+					hostIdStr: result.host_id,
+					localPort
+				});
+			} else {
+				await invoke("connect_to_host", {
+					hostIdStr: result.host_id,
+					localPort
+				});
+			}
+			toast.success(`${settings.protocol} 隧道已打通`, {icon: "🚀", id: toastId});
 			setCurrentLobbyId(result.lobby_id);
 			setLastHostId(result.host_id);
 			await refreshStatus();
@@ -165,16 +180,24 @@ export function ConnectionPanel() {
 						{filteredPorts.map((info) => (
 							<button
 								key={`${info.port}-${info.pid}`}
-								onClick={() => setLocalPort(info.port)}
+								onClick={() => {
+									setLocalPort(info.port);
+									if (settings.autoProtocolSwitch) {
+										setSettings({protocol: info.protocol === "UDP" ? "UDP" : "TCP"});
+									}
+								}}
 								className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all active:scale-95 ${
 									localPort === info.port
 										? "bg-primary text-primary-foreground"
 										: "bg-primary/10 hover:bg-primary/20 text-primary"
 								}`}
-								title={`PID: ${info.pid}`}
+								title={`PID: ${info.pid} | ${info.protocol}`}
 							>
 								{info.port}
-								<span className="opacity-60 ml-1.5 font-sans">
+								<span className={`ml-1.5 text-[9px] font-sans ${info.protocol === "UDP" ? "text-orange-400" : "text-green-400"}`}>
+									{info.protocol}
+								</span>
+								<span className="opacity-60 ml-1 font-sans">
 									{info.process_name}
 								</span>
 							</button>
@@ -250,11 +273,43 @@ export function ConnectionPanel() {
 							: "端口未监听，请先在游戏中开启联机"}
 					</p>
 				)}
-				{autoDetect && (
-					<p className="text-[11px] ml-2 text-primary/70">
-						📡 每 2 秒扫描，检测到新端口将自动填入
+			{autoDetect && (
+				<p className="text-[11px] ml-2 text-primary/70">
+					📡 每 2 秒扫描，检测到新端口将自动填入
+				</p>
+			)}
+			<div className="flex items-center gap-2 ml-2 mt-1">
+				{settings.autoProtocolSwitch ? (
+					<p className="text-[11px] text-muted-foreground">
+						协议: <span className={settings.protocol === "UDP" ? "text-orange-400 font-bold" : "text-green-500 font-bold"}>{settings.protocol}</span>
+						<span className="ml-1 opacity-60">(自动检测)</span>
 					</p>
+				) : (
+					<div className="flex items-center gap-1">
+						<span className="text-[11px] text-muted-foreground">协议:</span>
+						<button
+							onClick={() => setSettings({protocol: "TCP"})}
+							className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+								settings.protocol === "TCP"
+									? "bg-green-500/20 text-green-500"
+									: "bg-muted/30 text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							TCP
+						</button>
+						<button
+							onClick={() => setSettings({protocol: "UDP"})}
+							className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+								settings.protocol === "UDP"
+									? "bg-orange-400/20 text-orange-400"
+									: "bg-muted/30 text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							UDP
+						</button>
+					</div>
 				)}
+			</div>
 			</div>
 
 			<div className="grid grid-cols-2 gap-3">

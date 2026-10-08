@@ -1,6 +1,6 @@
 [package]
 name = "steam_play_space"
-version = "1.0.1"
+version = "1.1.1"
 description = "A Steam P2P tunneling tool for LAN games"
 authors = ["112114141"]
 edition = "2021"
