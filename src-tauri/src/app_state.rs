@@ -1,5 +1,5 @@
 /*
- * @Author: 112114141
+ * @Author: 112114141（左晟宇						）
  * @Date: 2026-01-12 01:56:40
  * @LastEditTime: 2026-03-11 14:41:20
  * @FilePath: \src-tauri\src\app_state.rs
