@@ -14,6 +14,7 @@ use std::sync::mpsc;
 use std::sync::LazyLock;
 use std::thread;
 use std::time::Duration;
+use std::os::windows::process::CommandExt;
 use steamworks::networking_types::{NetConnectionStatusChanged, NetworkingConnectionState};
 use steamworks::{
     Callback, ChatMemberStateChange, GameLobbyJoinRequested, GameRichPresenceJoinRequested,
@@ -184,13 +185,25 @@ fn get_memory_usage() -> String {
 
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     if let Some(process) = sys.process(pid) {
-        // sysinfo v0.29+ 返回的是 bytes
         let memory_bytes = process.memory();
-        // 转换为 MB
         let memory_mb = memory_bytes as f64 / 1024.0 / 1024.0;
         return format!("{:.2} MB", memory_mb);
     }
     "N/A".to_string()
+}
+
+#[tauri::command]
+fn open_url(url: String) {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "", &url])
+        .creation_flags(0x08000000)
+        .spawn()
+        .ok();
+}
+
+#[tauri::command]
+fn emit_open_friends(app_handle: tauri::AppHandle) {
+    let _ = app_handle.emit("open-friends", ());
 }
 
 #[tokio::main]
@@ -602,7 +615,9 @@ async fn main() {
             chat::get_chat_history,
             open_log_window,
             get_log_history,
-            get_memory_usage
+            get_memory_usage,
+            open_url,
+            emit_open_friends
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用时出错");

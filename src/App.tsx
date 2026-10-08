@@ -1,6 +1,7 @@
 // src/App.tsx
 
 import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
 import {motion} from "framer-motion";
 import {Bell, LogOut, Settings, Terminal, UserPlus, Users, Wifi, X} from "lucide-react";
 import {useEffect, useState} from "react";
@@ -34,6 +35,15 @@ function App() {
 	const [showMembers, setShowMembers] = useState(false);
 	const [showSettings, setShowSettings] = useState(false);
 	const [joining, setJoining] = useState(false);
+
+	useEffect(() => {
+		const unlisten = listen("open-friends", () => {
+			setShowFriends(true);
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
+	}, []);
 
 	const doJoinLobby = async (lobbyId: string, friendName: string) => {
 		setJoining(true);

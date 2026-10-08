@@ -1,3 +1,4 @@
+import {invoke} from "@tauri-apps/api/core";
 import {Radar, Minimize2, X, Settings, ArrowLeftRight} from "lucide-react";
 import {useApp} from "../AppContext";
 
@@ -167,6 +168,18 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 							自动切换通过 netstat 检测端口协议类型，准确率约 90%。同端口有 TCP+UDP 时优先 TCP。
 						</p>
 					</div>
+				</div>
+
+				<div className="pt-3 border-t border-border text-center">
+					<p className="text-[11px] text-muted-foreground">
+						Made By{" "}
+						<span
+							onClick={() => invoke("open_url", {url: "https://github.com/112114141"})}
+							className="text-blue-500 font-bold cursor-pointer hover:underline"
+						>
+							112114141
+						</span>
+					</p>
 				</div>
 			</div>
 		</>
