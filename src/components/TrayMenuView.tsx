@@ -35,7 +35,7 @@ export function TrayMenuView() {
 		<div className="h-screen w-screen bg-transparent flex items-start justify-center p-0 select-none">
 			<div className="mt-2 w-[230px] rounded-2xl bg-card border border-border shadow-2xl overflow-hidden">
 				<div className="px-4 py-3 border-b border-border">
-					<p className="text-xs font-bold text-foreground">Steam P2P Tunnel</p>
+					<p className="text-xs font-bold text-foreground">Steam Play Space</p>
 					<p className="text-[10px] text-muted-foreground">正在后台运行</p>
 				</div>
 

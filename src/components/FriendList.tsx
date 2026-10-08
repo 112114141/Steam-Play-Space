@@ -125,7 +125,7 @@ export function FriendList({isOpen, onClose}: Props) {
 					) : friend.in_this_game ? (
 						<span className="text-[10px] text-[rgb(var(--chart-1))] truncate flex items-center gap-1">
 							<Wifi className="w-3 h-3 shrink-0" />
-							Steam P2P Tunnel
+							Steam Play Space
 						</span>
 					) : (
 						<span className="text-[10px] text-muted-foreground">

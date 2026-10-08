@@ -514,7 +514,7 @@ async fn main() {
             // 系统托盘 - 右键传坐标，前端自定义菜单
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Steam P2P Tunnel")
+                .tooltip("Steam Play Space")
                 .on_tray_icon_event(|tray, event| {
                     let app = tray.app_handle();
                     match event {
