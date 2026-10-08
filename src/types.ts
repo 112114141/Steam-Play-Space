@@ -37,4 +37,5 @@ export interface NetworkStatus {
 export interface JoinLobbyResult {
 	lobby_id: string;
 	host_id: string;
+	host_protocol: string;
 }

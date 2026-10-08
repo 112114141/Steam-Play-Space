@@ -27,7 +27,8 @@ function App() {
 		clearRichPresenceJoin,
 		refreshStatus,
 		hydrated,
-		settings
+		settings,
+		setSettings
 	} = useApp();
 	const {isConnected, statusMessage} = networkStatus;
 
@@ -54,7 +55,11 @@ function App() {
 				lobbyIdStr: lobbyId
 			});
 			toast.loading("正在建立 P2P 隧道...", {id: toastId});
-			if (settings.protocol === "UDP") {
+			const hostProtocol = result.host_protocol === "UDP" ? "UDP" : "TCP";
+			if (hostProtocol !== settings.protocol) {
+				setSettings({protocol: hostProtocol});
+			}
+			if (hostProtocol === "UDP") {
 				await invoke("start_udp_client", {
 					hostIdStr: result.host_id,
 					localPort
@@ -65,7 +70,7 @@ function App() {
 					localPort
 				});
 			}
-			toast.success(`${settings.protocol} 隧道已打通`, {id: toastId});
+			toast.success(`${hostProtocol} 隧道已打通`, {id: toastId});
 			setCurrentLobbyId(result.lobby_id);
 			await refreshStatus();
 		} catch (e: any) {

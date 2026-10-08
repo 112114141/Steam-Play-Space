@@ -66,22 +66,29 @@ You and your friends all have Steam, but the game only supports LAN multiplayer?
 
 ## 🎯 支持的游戏 | Supported Games
 
-任何支持局域网（LAN）联机的游戏均可使用，**TCP 和 UDP 协议都支持**：
+任何支持局域网（LAN）联机的 Steam 游戏均可使用。Steam Play Space 同时支持 **TCP** 和 **UDP** 两种隧道协议，覆盖绝大多数 LAN 游戏需求。
 
-| 游戏 | 默认端口 | 协议 |
-|------|----------|------|
-| Minecraft Java版 | 25565 | TCP |
-| Terraria | 7777 | TCP |
-| Project Zomboid | 16261 | TCP |
-| Starbound | 21025 | TCP |
-| OpenTTD | 3979 | UDP |
-| RimWorld (联机Mod) | 25555 | TCP |
-| Valheim | 2456 | UDP |
-| L4D2 (Left 4 Dead 2) | 27015 | UDP |
-| 幻兽帕鲁 (Palworld) | 8211 | UDP |
-| Don't Starve Together | 10999 | UDP |
+### 📡 TCP 协议隧道
 
-> 💡 **协议自动切换**：默认开启，选中端口时自动判断 TCP/UDP。也可在设置中关闭后手动选择。
+TCP 隧道适用于基于 TCP 的局域网游戏，提供可靠的数据传输：
+
+- **典型游戏**：Minecraft Java版、Terraria、Project Zomboid、Starbound、RimWorld（联机 Mod）等
+- **工作原理**：通过 Steam Networking Sockets API 建立 P2P 连接，在本地端口和远端游戏之间转发 TCP 流
+- **适用场景**：需要可靠传输、顺序保证的联机游戏
+
+### 📶 UDP 协议隧道
+
+UDP 隧道适用于基于 UDP 的局域网游戏，提供低延迟的数据传输：
+
+- **典型游戏**：Valheim、幻兽帕鲁 (Palworld)、L4D2、Don't Starve Together、OpenTTD 等
+- **工作原理**：通过 Steam P2P Packet API（channel 1）建立 P2P 连接，在本地端口和远端游戏之间转发 UDP 数据包
+- **适用场景**：追求低延迟、允许少量丢包的实时联机游戏
+
+### 🔀 协议选择
+
+- **协议自动切换**（默认开启）：选中端口时自动判断 TCP/UDP
+- **手动选择**：在设置中关闭自动切换后，可手动选择 TCP 或 UDP
+- **房主同步**：加入房间时自动与房主协议保持一致，无需手动调整
 
 ---
 
@@ -154,7 +161,7 @@ Steam-Play-Space/
 
 <div align="center">
 
-**Made by 112114141** 🛠️
+**Made by 112114141（左晟宇）** 🛠️
 
 如果觉得有用，给个 ⭐ Star 吧！
 

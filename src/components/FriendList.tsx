@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function FriendList({isOpen, onClose}: Props) {
-	const {localPort, setCurrentLobbyId, setLastHostId, refreshStatus, settings} = useApp();
+	const {localPort, setCurrentLobbyId, setLastHostId, refreshStatus, settings, setSettings} = useApp();
 	const [friends, setFriends] = useState<FriendInfo[]>([]);
 	const [filter, setFilter] = useState("");
 	const [gameNames, setGameNames] = useState<Record<number, string>>({});
@@ -68,7 +68,11 @@ export function FriendList({isOpen, onClose}: Props) {
 		const result = await invoke<JoinLobbyResult>("join_lobby", {
 			lobbyIdStr: friend.lobby_id
 		});
-		if (settings.protocol === "UDP") {
+		const hostProtocol = result.host_protocol === "UDP" ? "UDP" : "TCP";
+		if (hostProtocol !== settings.protocol) {
+			setSettings({protocol: hostProtocol});
+		}
+		if (hostProtocol === "UDP") {
 			await invoke("start_udp_client", {
 				hostIdStr: result.host_id,
 				localPort

@@ -100,7 +100,7 @@ export function ConnectionPanel() {
 		const toastId = "create-lobby";
 		try {
 			toast.loading("创建 Steam 房间...", {id: toastId});
-			const id = await invoke<string>("create_lobby");
+			const id = await invoke<string>("create_lobby", {protocol: settings.protocol});
 			toast.loading("启动 P2P 监听...", {id: toastId});
 			if (settings.protocol === "UDP") {
 				await invoke("start_udp_host", {localPort});
@@ -135,7 +135,11 @@ export function ConnectionPanel() {
 				lobbyIdStr: lobbyIdInput
 			});
 			toast.loading("建立 P2P 隧道...", {id: toastId});
-			if (settings.protocol === "UDP") {
+			const hostProtocol = result.host_protocol === "UDP" ? "UDP" : "TCP";
+			if (hostProtocol !== settings.protocol) {
+				setSettings({protocol: hostProtocol});
+			}
+			if (hostProtocol === "UDP") {
 				await invoke("start_udp_client", {
 					hostIdStr: result.host_id,
 					localPort
@@ -146,7 +150,7 @@ export function ConnectionPanel() {
 					localPort
 				});
 			}
-			toast.success(`${settings.protocol} 隧道已打通`, {icon: "🚀", id: toastId});
+			toast.success(`${hostProtocol} 隧道已打通`, {icon: "🚀", id: toastId});
 			setCurrentLobbyId(result.lobby_id);
 			setLastHostId(result.host_id);
 			await refreshStatus();

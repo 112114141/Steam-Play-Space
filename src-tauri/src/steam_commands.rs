@@ -31,6 +31,7 @@ pub struct LobbyInfo {
 pub struct JoinLobbyResult {
     pub lobby_id: String,
     pub host_id: String,
+    pub host_protocol: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -123,7 +124,7 @@ pub async fn resolve_game_name(app_id: u32) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn create_lobby(state: State<'_, AppState>) -> AppResult<String> {
+pub async fn create_lobby(state: State<'_, AppState>, protocol: String) -> AppResult<String> {
     let (tx, rx) = oneshot::channel();
     {
         let matchmaking = state.steam_client.matchmaking();
@@ -149,6 +150,7 @@ pub async fn create_lobby(state: State<'_, AppState>) -> AppResult<String> {
     let friends = state.steam_client.friends();
     friends.set_rich_presence("steam_display", Some("#Status_InLobby"));
     friends.set_rich_presence("connect", Some(&lobby_id.raw().to_string()));
+    state.steam_client.matchmaking().set_lobby_data(lobby_id, "protocol", &protocol);
     Ok(lobby_id.raw().to_string())
 }
 
@@ -221,13 +223,18 @@ pub async fn join_lobby(
         .steam_client
         .friends()
         .set_rich_presence("connect", Some(&lobby_id_str));
-    let host_id = {
+    let (host_id, host_protocol) = {
         let matchmaking = state.steam_client.matchmaking();
-        matchmaking.lobby_owner(joined_lobby_id)
+        let owner = matchmaking.lobby_owner(joined_lobby_id);
+        let protocol = matchmaking
+            .lobby_data(joined_lobby_id, "protocol")
+            .unwrap_or_else(|| "TCP".to_string());
+        (owner, protocol)
     };
     Ok(JoinLobbyResult {
         lobby_id: joined_lobby_id.raw().to_string(),
         host_id: host_id.raw().to_string(),
+        host_protocol,
     })
 }
 
