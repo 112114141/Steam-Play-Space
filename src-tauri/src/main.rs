@@ -203,6 +203,10 @@ fn open_url(url: String) {
 
 #[tauri::command]
 fn emit_open_friends(app_handle: tauri::AppHandle) {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
     let _ = app_handle.emit("open-friends", ());
 }
 

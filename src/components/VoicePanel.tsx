@@ -174,14 +174,14 @@ export function VoicePanel() {
 							{user.name}
 							{(isMe && muted) && <MicOff className="w-2.5 h-2.5" />}
 							{!isMe && (
-								<button
-									onClick={() => handleToggleMuteUser(user.id)}
-									className={`ml-0.5 transition-colors ${userIsMuted ? "text-red-500" : "text-muted-foreground/50 hover:text-foreground"}`}
-									title={userIsMuted ? "取消静音此人" : "静音此人"}
-								>
-									{userIsMuted ? <VolumeX className="w-2.5 h-2.5" /> : <Volume2 className="w-2.5 h-2.5" />}
-								</button>
-							)}
+							<button
+								onClick={() => handleToggleMuteUser(user.id)}
+								className={`ml-1 flex items-center justify-center w-5 h-5 rounded-full transition-colors ${userIsMuted ? "bg-red-500/30 text-red-500" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}
+								title={userIsMuted ? "取消静音此人" : "静音此人"}
+							>
+								{userIsMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+							</button>
+						)}
 						</div>
 					);
 				})}

@@ -63,7 +63,7 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 				className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[150]"
 				onClick={onClose}
 			/>
-			<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4 p-6 rounded-3xl bg-card border border-border shadow-2xl space-y-5 z-[160]">
+			<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm mx-4 p-6 rounded-3xl bg-card border border-border shadow-2xl space-y-5 z-[160] max-h-[90vh] overflow-y-auto custom-scrollbar">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<Settings className="w-5 h-5 text-primary" />
