@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use std::thread;
 
 const FILE_CHANNEL: i32 = 2;
-const CHUNK_SIZE: usize = 60 * 1024;
+const CHUNK_SIZE: usize = 1100;
 
 const MSG_FILE_META: u8 = 1;
 const MSG_FILE_CHUNK: u8 = 2;
@@ -191,7 +191,7 @@ pub fn start_file_receiver(app_handle: tauri::AppHandle, client: steamworks::Cli
 
     thread::spawn(move || {
         let networking = client.networking();
-        let mut buf = [0u8; 120 * 1024];
+        let mut buf = [0u8; 1200];
         loop {
             if let Some(_size) = networking.is_p2p_packet_available_on_channel(FILE_CHANNEL) {
                 if let Some((steam_id, n)) = networking.read_p2p_packet_from_channel(&mut buf, FILE_CHANNEL) {

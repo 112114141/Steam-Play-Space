@@ -122,7 +122,7 @@ pub fn start_voice_receiver(app_handle: tauri::AppHandle, client: steamworks::Cl
 
     thread::spawn(move || {
         let networking = client.networking();
-        let mut buf = [0u8; 8192];
+        let mut buf = [0u8; 1200];
         loop {
             if let Some(_size) = networking.is_p2p_packet_available_on_channel(VOICE_CHANNEL) {
                 if let Some((steam_id, n)) = networking.read_p2p_packet_from_channel(&mut buf, VOICE_CHANNEL) {

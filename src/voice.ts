@@ -35,7 +35,7 @@ export class VoiceManager {
 		this.gainNode = this.audioContext.createGain();
 		this.gainNode.gain.value = settings.micVolume / 100;
 
-		const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
+		const processor = this.audioContext.createScriptProcessor(512, 1, 1);
 		processor.onaudioprocess = (e) => {
 			if (this.muted || !this.active) return;
 			const input = e.inputBuffer.getChannelData(0);
