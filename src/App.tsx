@@ -28,7 +28,8 @@ function App() {
 		refreshStatus,
 		hydrated,
 		settings,
-		setSettings
+		setSettings,
+		setLastHostId
 	} = useApp();
 	const {isConnected, statusMessage} = networkStatus;
 
@@ -72,6 +73,7 @@ function App() {
 			}
 			toast.success(`${hostProtocol} 隧道已打通`, {id: toastId});
 			setCurrentLobbyId(result.lobby_id);
+			setLastHostId(result.host_id);
 			await refreshStatus();
 		} catch (e: any) {
 			const msg = typeof e === "string" ? e : e.message || JSON.stringify(e);

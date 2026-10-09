@@ -1,5 +1,6 @@
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
+use std::collections::HashSet;
 use std::net::UdpSocket;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -39,7 +40,7 @@ impl UdpTunnel {
         let socket_recv = udp_socket.try_clone()
             .map_err(|e| AppError::Network(format!("try_clone 失败: {}", e)))?;
 
-        let friend_id: Arc<StdMutex<Option<SteamId>>> = Arc::new(StdMutex::new(None));
+        let friend_ids: Arc<StdMutex<HashSet<SteamId>>> = Arc::new(StdMutex::new(HashSet::new()));
 
         // 线程1: P2P channel 1 → 本地游戏服务器
         let client = state.steam_client.clone();
@@ -47,7 +48,7 @@ impl UdpTunnel {
         let cancel_p2p = cancel.clone();
         let socket_send = udp_socket;
         let game_addr_p2p = game_addr.clone();
-        let friend_id_p2p = friend_id.clone();
+        let friend_ids_p2p = friend_ids.clone();
 
         thread::spawn(move || {
             let networking = client.networking();
@@ -63,8 +64,8 @@ impl UdpTunnel {
                         networking.accept_p2p_session(steam_id);
                         bytes_received.fetch_add(n as u64, Ordering::Relaxed);
                         {
-                            let mut fid = friend_id_p2p.lock().unwrap();
-                            *fid = Some(steam_id);
+                            let mut fids = friend_ids_p2p.lock().unwrap();
+                            fids.insert(steam_id);
                         }
                         let _ = socket_send.send_to(&buf[..n], &game_addr_p2p);
                     }
@@ -79,7 +80,7 @@ impl UdpTunnel {
         let client2 = state.steam_client.clone();
         let bytes_sent = state.bytes_sent.clone();
         let cancel_local = cancel.clone();
-        let friend_id_local = friend_id.clone();
+        let friend_ids_local = friend_ids.clone();
 
         thread::spawn(move || {
             let networking = client2.networking();
@@ -90,16 +91,16 @@ impl UdpTunnel {
                 }
                 match socket_recv.recv_from(&mut buf) {
                     Ok((n, _addr)) => {
-                        let fid = friend_id_local.lock().unwrap();
-                        if let Some(steam_id) = *fid {
+                        let fids = friend_ids_local.lock().unwrap();
+                        for &steam_id in fids.iter() {
                             networking.send_p2p_packet_on_channel(
                                 steam_id,
                                 SendType::Unreliable,
                                 &buf[..n],
                                 UDP_CHANNEL,
                             );
-                            bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
                         }
+                        bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         thread::sleep(Duration::from_millis(1));
