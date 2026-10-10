@@ -30,6 +30,8 @@ interface ProgressInfo {
 	progress: number;
 	file_name: string;
 	direction: string;
+	speed?: number;
+	time_left?: number;
 }
 
 type UnifiedMsg =
@@ -76,11 +78,11 @@ export function ChatBox() {
 				return next;
 			});
 		});
-		const unlistenProgress = listen<{file_id: number; progress: number; file_name: string; direction: string}>("file-progress", (event) => {
-			const {file_id, progress, file_name, direction} = event.payload;
+		const unlistenProgress = listen<{file_id: number; progress: number; file_name: string; direction: string; speed?: number; time_left?: number}>("file-progress", (event) => {
+			const {file_id, progress, file_name, direction, speed, time_left} = event.payload;
 			setProgressMap((prev) => {
 				const next = new Map(prev);
-				next.set(file_id, {progress, file_name, direction});
+				next.set(file_id, {progress, file_name, direction, speed, time_left});
 				return next;
 			});
 			if (progress >= 100) {
@@ -93,10 +95,29 @@ export function ChatBox() {
 				}, 1500);
 			}
 		});
+		const unlistenError = listen<{file_id: number; file_name: string; error: string}>("file-error", (event) => {
+			const {file_id, error} = event.payload;
+			setProgressMap((prev) => {
+				const next = new Map(prev);
+				next.delete(file_id);
+				return next;
+			});
+			console.error("文件传输错误:", error);
+		});
+		const unlistenCancelled = listen<{file_id: number; file_name: string}>("file-cancelled", (event) => {
+			const {file_id} = event.payload;
+			setProgressMap((prev) => {
+				const next = new Map(prev);
+				next.delete(file_id);
+				return next;
+			});
+		});
 		return () => {
 			unlistenText.then((fn) => fn());
 			unlistenFile.then((fn) => fn());
 			unlistenProgress.then((fn) => fn());
+			unlistenError.then((fn) => fn());
+			unlistenCancelled.then((fn) => fn());
 		};
 	}, []);
 
@@ -276,7 +297,7 @@ export function ChatBox() {
 				<div className="px-6 py-1.5 space-y-1 border-t border-border/50">
 					{Array.from(progressMap.entries()).map(([id, info]) => (
 						<div key={id} className="flex items-center gap-2 text-[10px]">
-							<span className="text-muted-foreground truncate max-w-[150px]">
+							<span className="text-muted-foreground truncate max-w-[120px]">
 								{info.direction === "send" ? "↑" : "↓"} {info.file_name}
 							</span>
 							<div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -286,6 +307,16 @@ export function ChatBox() {
 								/>
 							</div>
 							<span className="text-muted-foreground w-8 text-right">{info.progress}%</span>
+							{info.speed && info.speed > 0 && (
+								<span className="text-muted-foreground/60 w-16 text-right">
+									{info.speed > 1048576 ? `${(info.speed / 1048576).toFixed(1)}MB/s` : `${(info.speed / 1024).toFixed(0)}KB/s`}
+								</span>
+							)}
+							{info.time_left && info.time_left > 0 && info.progress < 100 && (
+								<span className="text-muted-foreground/60 w-12 text-right">
+									{info.time_left > 60 ? `${Math.ceil(info.time_left / 60)}分` : `${Math.ceil(info.time_left)}秒`}
+								</span>
+							)}
 						</div>
 					))}
 				</div>

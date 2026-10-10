@@ -13,6 +13,7 @@ use steamworks::networking_sockets::NetConnection;
 use steamworks::{Client, LobbyId, SteamId};
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicBool;
+
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +52,7 @@ pub struct AppState {
     pub bytes_received: Arc<AtomicU64>,
     pub voice_active: Arc<AtomicBool>,
     pub file_save_path: Arc<Mutex<String>>,
+    pub file_cancels: Arc<Mutex<HashMap<u32, Arc<AtomicBool>>>>,
 }
 
 impl AppState {
@@ -74,6 +76,7 @@ impl AppState {
             bytes_received: Arc::new(AtomicU64::new(0)),
             voice_active: Arc::new(AtomicBool::new(false)),
             file_save_path: Arc::new(Mutex::new(String::new())),
+            file_cancels: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }

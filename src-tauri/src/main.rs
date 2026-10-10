@@ -627,6 +627,7 @@ async fn main() {
             chat::send_chat_message,
             chat::get_chat_history,
             file_transfer::send_file_to_lobby,
+            file_transfer::cancel_file_transfer,
             file_transfer::set_file_save_path,
             file_transfer::get_file_save_path,
             voice::send_voice_data,

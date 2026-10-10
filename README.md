@@ -41,10 +41,13 @@ You and your friends all have Steam, but the game only supports LAN multiplayer?
 
 房间内可通过聊天框直接发送文件和图片，基于 P2P 直连传输，不经过第三方服务器。
 
-- **发送文件**：点击 📁 按钮选择任意文件，分片传输（60KB/片），无大小限制
+- **发送文件**：点击 📁 按钮选择任意文件，流式分片传输（1100字节/片），无大小限制
 - **发送图片**：点击 🖼 按钮选择图片，聊天中显示缩略图，点击可打开
-- **自动保存**：接收的文件自动保存到 `~/Downloads/SteamPlaySpace/`
-- **进度显示**：实时显示传输进度条
+- **自动保存**：接收的文件自动保存到桌面或自定义目录
+- **进度显示**：实时显示传输进度条、速度（KB/s、MB/s）和剩余时间
+- **可取消传输**：发送方和接收方均可取消正在进行的传输
+- **通话时自动降速**：语音通话期间自动降低文件传输速率，保证语音质量
+- **文件校验**：传输完成后自动验证文件大小，确保完整性
 
 ## 🎙️ 语音会议室 | Voice Chat
 
@@ -56,6 +59,9 @@ You and your friends all have Steam, but the game only supports LAN multiplayer?
 - **说话指示**：正在说话的成员会绿色高亮闪烁
 - **设备选择**：设置面板可选择麦克风、扬声器，调节麦克风音量（0-200%）
 - **降噪选项**：回声消除、降噪、自动增益可独立开关（浏览器原生实现，开销极小）
+- **VAD 静音检测**：带 hangover 机制（300ms），说话时单词间停顿不被裁剪，减少带宽占用
+- **抖动缓冲**：JitterBuffer 缓冲 3 帧（最大 12 帧），减少网络抖动导致的音频卡顿
+- **乱序重排**：语音包带序列号，自动重排乱序包、检测丢包
 
 ---
 
@@ -160,6 +166,8 @@ Steam-Play-Space/
 │       ├── app_state.rs         # 状态管理
 │       ├── net_manager.rs       # TCP P2P 隧道核心
 │       ├── udp_net_manager.rs   # UDP P2P 隧道核心
+│       ├── file_transfer.rs     # 文件传输（流式分片、取消、校验）
+│       ├── voice.rs             # 语音通话（序列号、P2P 收发）
 │       └── steam_commands.rs    # Tauri 命令
 ├── steamworks-rs/      # Steamworks SDK 绑定 (本地依赖)
 └── package.json

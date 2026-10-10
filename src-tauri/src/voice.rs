@@ -2,10 +2,12 @@ use crate::app_state::{AppState, TunnelState};
 use crate::error::{AppError, AppResult};
 use steamworks::SendType;
 use tauri::{Emitter, State};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread;
 
 const VOICE_CHANNEL: i32 = 3;
+
+static VOICE_SEQ: AtomicU32 = AtomicU32::new(0);
 
 #[derive(serde::Serialize, Clone)]
 pub struct VoiceUser {
@@ -35,9 +37,14 @@ pub fn send_voice_data(
     let my_id = state.steam_client.user().steam_id();
     let networking = state.steam_client.networking();
 
+    let seq = VOICE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let mut packet = Vec::with_capacity(4 + data.len());
+    packet.extend_from_slice(&seq.to_le_bytes());
+    packet.extend_from_slice(&data);
+
     for member in &members {
         if *member != my_id {
-            networking.send_p2p_packet_on_channel(*member, SendType::Unreliable, &data, VOICE_CHANNEL);
+            networking.send_p2p_packet_on_channel(*member, SendType::Unreliable, &packet, VOICE_CHANNEL);
         }
     }
 
