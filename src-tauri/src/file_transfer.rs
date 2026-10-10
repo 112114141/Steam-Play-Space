@@ -135,6 +135,7 @@ pub async fn send_file_to_lobby(
 
     let networking = state.steam_client.networking();
     let meta = build_meta(file_id, &file_name, file_size, &mime_type);
+    log::info!("[FILE_SEND] 发送 META: file_id={}, name={}, size={}, mime={}, meta_len={}, members={}", file_id, file_name, file_size, mime_type, meta.len(), members.len());
     for member in &members {
         if *member != my_id {
             networking.send_p2p_packet_on_channel(*member, SendType::Reliable, &meta, FILE_CHANNEL);
@@ -300,8 +301,9 @@ pub fn start_file_receiver(
     thread::spawn(move || {
         let networking = client.networking();
         let mut buf = [0u8; 1200];
+        log::info!("[FILE_RECV] 文件接收线程已启动，监听 channel {}", FILE_CHANNEL);
         loop {
-            if let Some(_size) = networking.is_p2p_packet_available_on_channel(FILE_CHANNEL) {
+            if let Some(size) = networking.is_p2p_packet_available_on_channel(FILE_CHANNEL) {
                 if let Some((steam_id, n)) =
                     networking.read_p2p_packet_from_channel(&mut buf, FILE_CHANNEL)
                 {
@@ -311,9 +313,11 @@ pub fn start_file_receiver(
                     }
                     let data = &buf[..n];
                     let msg_type = data[0];
+                    log::info!("[FILE_RECV] 收到包: from={}, size={}, msg_type={}, data_len={}", steam_id.raw(), size, msg_type, data.len());
 
                     match msg_type {
                         1 if data.len() >= 7 => {
+                            log::info!("[FILE_RECV] 处理 META 消息, data_len={}", data.len());
                             let file_id = u32::from_le_bytes([data[1], data[2], data[3], data[4]]);
                             let name_len = u16::from_le_bytes([data[5], data[6]]) as usize;
                             if data.len() < 7 + name_len + 10 {

@@ -24,8 +24,8 @@ export class VoiceManager {
 	private readonly VAD_HANGOVER_FRAMES = 15;
 	private jitterBuffer: Map<number, number[]> = new Map();
 	private nextSeq: number = -1;
-	private readonly JITTER_TARGET = 3;
-	private readonly JITTER_MAX = 12;
+	private readonly JITTER_TARGET = 6;
+	private readonly JITTER_MAX = 20;
 
 	async start(settings: VoiceSettings): Promise<void> {
 		this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -114,6 +114,12 @@ export class VoiceManager {
 
 	setMuted(muted: boolean): void {
 		this.muted = muted;
+	}
+
+	resetJitterBuffer(): void {
+		this.jitterBuffer.clear();
+		this.nextSeq = -1;
+		this.nextPlayTime = 0;
 	}
 
 	setMicVolume(volume: number): void {

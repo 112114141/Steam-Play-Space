@@ -33,7 +33,7 @@ export function VoicePanel() {
 					.then(setVoiceUsers)
 					.catch(() => {});
 			}
-		}, 2000);
+		}, 1000);
 		return () => clearInterval(interval);
 	}, [inVoice]);
 
@@ -54,7 +54,7 @@ export function VoicePanel() {
 					next.delete(sender_id);
 					return next;
 				});
-			}, 300);
+			}, 600);
 		});
 		return () => {
 			unlistenVoice.then((fn) => fn());
@@ -99,8 +99,12 @@ export function VoicePanel() {
 	const handleToggleMuteUser = (userId: string) => {
 		setMutedUsers((prev) => {
 			const next = new Set(prev);
-			if (next.has(userId)) next.delete(userId);
-			else next.add(userId);
+			if (next.has(userId)) {
+				next.delete(userId);
+				voiceManager.resetJitterBuffer();
+			} else {
+				next.add(userId);
+			}
 			mutedUsersRef.current = next;
 			return next;
 		});
