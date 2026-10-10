@@ -262,6 +262,14 @@ async fn main() {
     // 如果 Handle 被 drop 则回调立即移除！必须用 let _h = 绑定保持存活。
     let mut _handles: Vec<steamworks::CallbackHandle> = Vec::new();
 
+    let client_for_p2p = client.clone();
+    let h = client.register_callback(move |req: steamworks::P2PSessionRequest| {
+        let networking = client_for_p2p.networking();
+        let accepted = networking.accept_p2p_session(req.remote);
+        log::info!("[P2P] SessionRequest from SteamId={}, accepted={}", req.remote.raw(), accepted);
+    });
+    _handles.push(h);
+
     let h = client.register_callback(move |event: NetConnectionStatusChanged| {
         let remote_id = event
             .connection_info
