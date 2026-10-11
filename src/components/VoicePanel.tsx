@@ -47,26 +47,28 @@ export function VoicePanel() {
 			if (data.length > 4) {
 				const view = new DataView(new Uint8Array(data).buffer);
 				const sampleCount = Math.floor((data.length - 4) / 2);
-				let rms = 0;
-				for (let i = 0; i < sampleCount; i++) {
-					const sample = view.getInt16(4 + i * 2, true) / 32768;
-					rms += sample * sample;
-				}
-				rms = Math.sqrt(rms / sampleCount);
+				if (sampleCount > 0) {
+					let rms = 0;
+					for (let i = 0; i < sampleCount; i++) {
+						const sample = view.getInt16(4 + i * 2, true) / 32768;
+						rms += sample * sample;
+					}
+					rms = Math.sqrt(rms / sampleCount);
 
-				if (rms > 0.01) {
-					setSpeakingIds((prev) => {
-						const next = new Set(prev);
-						next.add(sender_id);
-						return next;
-					});
-					setTimeout(() => {
+					if (rms > 0.01) {
 						setSpeakingIds((prev) => {
 							const next = new Set(prev);
-							next.delete(sender_id);
+							next.add(sender_id);
 							return next;
 						});
-					}, 600);
+						setTimeout(() => {
+							setSpeakingIds((prev) => {
+								const next = new Set(prev);
+								next.delete(sender_id);
+								return next;
+							});
+						}, 600);
+					}
 				}
 			}
 		});
