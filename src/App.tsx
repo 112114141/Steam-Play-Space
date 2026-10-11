@@ -44,6 +44,7 @@ function App() {
 			setShowFriends(true);
 		}
 		const unlisten = listen("open-friends", () => {
+			localStorage.removeItem("open_friends");
 			setShowFriends(true);
 		});
 		return () => {

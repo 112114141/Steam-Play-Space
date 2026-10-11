@@ -570,7 +570,7 @@ async fn main() {
                             ..
                         } => {
                             let app_handle = app.clone();
-                            let popup_w = 220.0;
+                            let popup_w = 240.0;
                             let popup_h = 220.0;
                             let gap = 8.0;
                             let scale = app_handle
