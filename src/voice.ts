@@ -19,9 +19,7 @@ export class VoiceManager {
 	private active = false;
 	private playbackContext: AudioContext | null = null;
 	private nextPlayTime = 0;
-	private vadHangover = 0;
-	private readonly VAD_THRESHOLD = 0.008;
-	private readonly VAD_HANGOVER_FRAMES = 15;
+
 	private jitterBuffer: Map<number, number[]> = new Map();
 	private nextSeq: number = -1;
 	private readonly JITTER_TARGET = 10;
@@ -48,18 +46,6 @@ export class VoiceManager {
 			if (this.muted || !this.active) return;
 			const input = e.inputBuffer.getChannelData(0);
 
-			let rms = 0;
-			for (let i = 0; i < input.length; i++) {
-				rms += input[i] * input[i];
-			}
-			rms = Math.sqrt(rms / input.length);
-
-			if (rms >= this.VAD_THRESHOLD) {
-				this.vadHangover = this.VAD_HANGOVER_FRAMES;
-			} else if (this.vadHangover > 0) {
-				this.vadHangover--;
-			}
-			if (this.vadHangover === 0) return;
 
 			const pcm = new Int16Array(input.length);
 			for (let i = 0; i < input.length; i++) {
@@ -107,7 +93,7 @@ export class VoiceManager {
 		this.gainNode = null;
 		this.playbackContext = null;
 		this.nextPlayTime = 0;
-		this.vadHangover = 0;
+
 		this.jitterBuffer.clear();
 		this.nextSeq = -1;
 	}

@@ -206,6 +206,7 @@ fn emit_open_friends(app_handle: tauri::AppHandle) {
     if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
+        let _ = window.eval("localStorage.setItem('open_friends', '1');");
     }
     let _ = app_handle.emit("open-friends", ());
 }
@@ -570,7 +571,7 @@ async fn main() {
                         } => {
                             let app_handle = app.clone();
                             let popup_w = 220.0;
-                            let popup_h = 360.0;
+                            let popup_h = 220.0;
                             let gap = 8.0;
                             let scale = app_handle
                                 .get_webview_window("main")

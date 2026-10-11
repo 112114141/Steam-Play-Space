@@ -43,18 +43,32 @@ export function VoicePanel() {
 			const {sender_id, data} = event.payload;
 			if (mutedUsersRef.current.has(sender_id)) return;
 			voiceManager.playAudioData(data);
-			setSpeakingIds((prev) => {
-				const next = new Set(prev);
-				next.add(sender_id);
-				return next;
-			});
-			setTimeout(() => {
-				setSpeakingIds((prev) => {
-					const next = new Set(prev);
-					next.delete(sender_id);
-					return next;
-				});
-			}, 600);
+
+			if (data.length > 4) {
+				const view = new DataView(new Uint8Array(data).buffer);
+				const sampleCount = Math.floor((data.length - 4) / 2);
+				let rms = 0;
+				for (let i = 0; i < sampleCount; i++) {
+					const sample = view.getInt16(4 + i * 2, true) / 32768;
+					rms += sample * sample;
+				}
+				rms = Math.sqrt(rms / sampleCount);
+
+				if (rms > 0.01) {
+					setSpeakingIds((prev) => {
+						const next = new Set(prev);
+						next.add(sender_id);
+						return next;
+					});
+					setTimeout(() => {
+						setSpeakingIds((prev) => {
+							const next = new Set(prev);
+							next.delete(sender_id);
+							return next;
+						});
+					}, 600);
+				}
+			}
 		});
 		return () => {
 			unlistenVoice.then((fn) => fn());
