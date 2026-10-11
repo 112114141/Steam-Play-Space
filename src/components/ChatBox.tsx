@@ -1,5 +1,6 @@
 import {invoke, convertFileSrc} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
+import {getCurrentWebview} from "@tauri-apps/api/webview";
 import {open} from "@tauri-apps/plugin-dialog";
 import {openPath} from "@tauri-apps/plugin-opener";
 import {FileText, Image, MessageCircle, Send, Download} from "lucide-react";
@@ -51,6 +52,7 @@ export function ChatBox() {
 	const [myId, setMyId] = useState<string | null>(null);
 	const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 	const [progressMap, setProgressMap] = useState<Map<number, ProgressInfo>>(new Map());
+	const [dragOver, setDragOver] = useState(false);
 	const virtuosoRef = useRef<any>(null);
 
 	useEffect(() => {
@@ -61,6 +63,26 @@ export function ChatBox() {
 				setMessages(sorted.map((d) => ({kind: "text", data: d})));
 			})
 			.catch(console.error);
+	}, []);
+
+	useEffect(() => {
+		const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+			const t = event.payload.type;
+			if (t === "over" || t === "enter") {
+				setDragOver(true);
+			} else if (t === "drop") {
+				setDragOver(false);
+				const paths = event.payload.paths;
+				if (paths && paths.length > 0) {
+					invoke("send_file_to_lobby", {filePath: paths[0]}).catch(console.error);
+				}
+			} else {
+				setDragOver(false);
+			}
+		});
+		return () => {
+			unlisten.then((fn) => fn());
+		};
 	}, []);
 
 	useEffect(() => {
@@ -241,6 +263,14 @@ export function ChatBox() {
 
 	return (
 		<div className="rounded-2xl bg-muted/30 border border-border overflow-hidden flex flex-col relative">
+			{dragOver && (
+				<div className="absolute inset-0 z-20 flex items-center justify-center bg-emerald-500/10 backdrop-blur-sm rounded-2xl border-2 border-dashed border-emerald-500/50 pointer-events-none">
+					<div className="text-center">
+						<FileText className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
+						<p className="text-sm font-bold text-emerald-500">拖放文件到此处发送</p>
+					</div>
+				</div>
+			)}
 			{!disclaimerAccepted && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl p-6">
 					<div className="text-center space-y-4 max-w-xs">

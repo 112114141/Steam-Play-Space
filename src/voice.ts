@@ -24,8 +24,8 @@ export class VoiceManager {
 	private readonly VAD_HANGOVER_FRAMES = 15;
 	private jitterBuffer: Map<number, number[]> = new Map();
 	private nextSeq: number = -1;
-	private readonly JITTER_TARGET = 6;
-	private readonly JITTER_MAX = 20;
+	private readonly JITTER_TARGET = 10;
+	private readonly JITTER_MAX = 30;
 
 	async start(settings: VoiceSettings): Promise<void> {
 		this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -202,7 +202,7 @@ export class VoiceManager {
 		src.connect(this.playbackContext.destination);
 
 		const now = this.playbackContext.currentTime;
-		if (this.nextPlayTime < now) {
+		if (this.nextPlayTime < now || this.nextPlayTime > now + 0.05) {
 			this.nextPlayTime = now + 0.01;
 		}
 		src.start(this.nextPlayTime);

@@ -225,9 +225,9 @@ pub async fn send_file_to_lobby(
             }));
 
             thread::sleep(if voice_active.load(Ordering::Relaxed) {
-                Duration::from_millis(5)
-            } else {
                 Duration::from_millis(1)
+            } else {
+                Duration::from_micros(100)
             });
         }
 

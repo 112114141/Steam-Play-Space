@@ -60,9 +60,9 @@ pub fn join_voice(state: State<'_, AppState>) -> AppResult<()> {
         TunnelState::Joined(id) => id,
         TunnelState::Idle => return Err(AppError::Lobby("不在大厅中".to_string())),
     };
-    state.steam_client.matchmaking().set_lobby_data(
+    state.steam_client.matchmaking().set_lobby_member_data(
         lobby_id,
-        &format!("voice_{}", my_id.raw()),
+        "voice",
         "1",
     );
     log::info!("语音频道已加入");
@@ -78,7 +78,7 @@ pub fn leave_voice(state: State<'_, AppState>) -> AppResult<()> {
         TunnelState::Joined(id) => id,
         TunnelState::Idle => return Ok(()),
     };
-    state.steam_client.matchmaking().delete_lobby_data(lobby_id, &format!("voice_{}", my_id.raw()));
+    state.steam_client.matchmaking().set_lobby_member_data(lobby_id, "voice", "0");
     log::info!("语音频道已离开");
     Ok(())
 }
@@ -105,8 +105,7 @@ pub fn get_voice_users(state: State<'_, AppState>) -> Vec<VoiceUser> {
     members
         .into_iter()
         .filter_map(|m| {
-            let key = format!("voice_{}", m.raw());
-            if matchmaking.lobby_data(lobby_id, &key).as_deref() == Some("1") {
+            if matchmaking.get_lobby_member_data(lobby_id, m, "voice").as_deref() == Some("1") {
                 let name = if m == my_id { "我".to_string() } else { friends.get_friend(m).name() };
                 Some(VoiceUser {
                     id: m.raw().to_string(),

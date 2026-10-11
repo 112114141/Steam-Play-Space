@@ -174,8 +174,7 @@ export function VoicePanel() {
 									: "bg-muted/40 text-muted-foreground"
 							}`}
 						>
-							{isSpeaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-							{user.name}
+						{user.name}
 							{(isMe && muted) && <MicOff className="w-2.5 h-2.5" />}
 							{!isMe && (
 							<button
