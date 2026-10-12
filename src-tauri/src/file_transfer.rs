@@ -241,7 +241,7 @@ pub async fn send_file_to_lobby(
         }
 
         let my_id = client.user().steam_id();
-        let my_name = client.friends().get_friend(my_id).name();
+        let my_name = client.friends().name();
         let is_img = is_image_mime(&mime_type_clone);
         let _ = app_handle_clone.emit("chat-file", FileMessage {
             file_id,

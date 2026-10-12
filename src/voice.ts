@@ -120,6 +120,10 @@ export class VoiceManager {
 
 	setMuted(muted: boolean): void {
 		this.muted = muted;
+		if (muted) {
+			this.lastSpeaking = false;
+			if (this.onSpeakingCallback) this.onSpeakingCallback(false);
+		}
 	}
 
 	resetJitterBuffer(): void {
