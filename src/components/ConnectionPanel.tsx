@@ -21,6 +21,15 @@ interface PortProcessInfo {
 	protocol: string;
 }
 
+const GAME_PRESETS = [
+	{name: "MC", port: 25565, protocol: "TCP"},
+	{name: "Terraria", port: 7777, protocol: "TCP"},
+	{name: "Valheim", port: 2456, protocol: "UDP"},
+	{name: "L4D2", port: 27015, protocol: "UDP"},
+	{name: "帕鲁", port: 8211, protocol: "UDP"},
+	{name: "PZ", port: 16261, protocol: "UDP"},
+];
+
 export function ConnectionPanel() {
 	const {localPort, setLocalPort, setCurrentLobbyId, refreshStatus, setLastHostId, settings, setSettings} = useApp();
 	const [lobbyIdInput, setLobbyIdInput] = useState(
@@ -115,7 +124,7 @@ export function ConnectionPanel() {
 			} catch (e) {
 				console.error("自动检测失败:", e);
 			}
-		}, 2000);
+		}, 5000);
 
 		return () => clearInterval(interval);
 	}, [autoDetect, settings.autoProtocolSwitch, setLocalPort, setSettings]);
@@ -132,6 +141,10 @@ export function ConnectionPanel() {
 				);
 
 	const doCreateLobby = async () => {
+		if (localPort < 1 || localPort > 65535) {
+			toast.error("端口号必须在 1-65535 之间");
+			return;
+		}
 		setLoading("host");
 		const toastId = "create-lobby";
 		try {
@@ -177,6 +190,10 @@ export function ConnectionPanel() {
 	const handleJoinLobby = async () => {
 		if (!lobbyIdInput) {
 			toast.error("请输入房间 ID");
+			return;
+		}
+		if (localPort < 1 || localPort > 65535) {
+			toast.error("端口号必须在 1-65535 之间");
 			return;
 		}
 		localStorage.setItem("p2p_last_lobby_id", lobbyIdInput);
@@ -269,6 +286,27 @@ export function ConnectionPanel() {
 			)}
 
 			<div className="space-y-1">
+				<div className="flex flex-wrap gap-1.5 ml-2 mb-1">
+					{GAME_PRESETS.map((preset) => (
+						<button
+							key={preset.port}
+							onClick={() => {
+								setLocalPort(preset.port);
+								if (settings.autoProtocolSwitch) {
+									setSettings({protocol: preset.protocol as "TCP" | "UDP"});
+								}
+							}}
+							className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+								localPort === preset.port
+									? "bg-primary text-primary-foreground"
+									: "bg-muted/30 text-muted-foreground hover:text-foreground"
+							}`}
+							title={`${preset.port} ${preset.protocol}`}
+						>
+							{preset.name}
+						</button>
+					))}
+				</div>
 				<div className="flex items-center justify-between ml-2">
 					<label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
 						本地服务端口
@@ -304,11 +342,18 @@ export function ConnectionPanel() {
 					<Gamepad2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
 					<input
 						type="number"
+						min={1}
+						max={65535}
 						value={localPort}
-						onChange={(e) =>
-							setLocalPort(parseInt(e.target.value, 10) || 0)
-						}
-						className="w-full h-14 pl-12 pr-12 text-lg font-mono font-semibold bg-muted/30 border border-border rounded-2xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all text-center"
+						onChange={(e) => {
+							const v = parseInt(e.target.value, 10);
+							setLocalPort(isNaN(v) ? 0 : v);
+						}}
+						className={`w-full h-14 pl-12 pr-12 text-lg font-mono font-semibold bg-muted/30 border rounded-2xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 transition-all text-center ${
+							localPort < 1 || localPort > 65535
+								? "border-red-500 focus:ring-red-500/50"
+								: "border-border focus:ring-ring"
+						}`}
 						placeholder="25565"
 					/>
 					{portInfos.length > 0 && (
@@ -330,9 +375,14 @@ export function ConnectionPanel() {
 							: "端口未监听，请先在游戏中开启联机"}
 					</p>
 				)}
+				{(localPort < 1 || localPort > 65535) && (
+					<p className="text-[11px] ml-2 text-red-500">
+						⚠ 端口号必须在 1-65535 之间
+					</p>
+				)}
 			{autoDetect && (
 				<p className="text-[11px] ml-2 text-primary/70">
-					📡 每 2 秒扫描，检测到新端口将自动填入
+					📡 每 5 秒扫描，检测到新端口将自动填入
 				</p>
 			)}
 			<div className="flex items-center gap-2 ml-2 mt-1">

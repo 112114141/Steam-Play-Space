@@ -250,6 +250,13 @@ pub async fn connect_to_host(
     let host_id = SteamId::from_raw(host_id_u64);
     let my_id = state.steam_client.user().steam_id();
     if host_id != my_id {
+        let test_bind = tokio::net::TcpListener::bind(("127.0.0.1", local_port)).await;
+        match test_bind {
+            Ok(listener) => drop(listener),
+            Err(_) => return Err(AppError::Network(format!(
+                "端口 {} 已被占用，无法创建隧道。请关闭占用该端口的程序或更换端口", local_port
+            ))),
+        }
         net_manager::start_network_client(&state, host_id, local_port).await
     } else {
         Err(AppError::Network(
@@ -537,7 +544,7 @@ pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
         }
         if let Some(port_str) = parts[1].rsplit(':').next() {
             if let Ok(port) = port_str.parse::<u16>() {
-                if port > 0 {
+                if port >= 1024 {
                     if let Ok(pid) = parts[parts.len() - 1].parse::<u32>() {
                         port_pid_proto_list.push((port, pid, proto));
                     }
@@ -595,6 +602,9 @@ pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
             .get(pid)
             .cloned()
             .unwrap_or_else(|| "unknown".to_string());
+        if process_name.eq_ignore_ascii_case("steam_play_space.exe") {
+            continue;
+        }
         result.push(PortProcessInfo {
             port: *port,
             pid: *pid,
@@ -631,6 +641,13 @@ pub async fn start_udp_client(
     let host_id = SteamId::from_raw(host_id_u64);
     let my_id = state.steam_client.user().steam_id();
     if host_id != my_id {
+        let test_bind = std::net::UdpSocket::bind(("127.0.0.1", local_port));
+        match test_bind {
+            Ok(socket) => drop(socket),
+            Err(_) => return Err(AppError::Network(format!(
+                "端口 {} 已被占用，无法创建隧道。请关闭占用该端口的程序或更换端口", local_port
+            ))),
+        }
         crate::udp_net_manager::start_udp_client(&state, host_id, local_port).map(|_| ())
     } else {
         Err(AppError::Network(
