@@ -207,8 +207,9 @@ fn emit_open_friends(app_handle: tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
         let _ = window.eval("localStorage.setItem('open_friends', '1');");
+        let _ = window.emit("open-friends", ());
+        let _ = window.eval("if(window.__openFriends){window.__openFriends();}");
     }
-    let _ = app_handle.emit("open-friends", ());
 }
 
 #[tokio::main]

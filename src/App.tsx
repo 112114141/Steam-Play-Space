@@ -39,6 +39,10 @@ function App() {
 	const [joining, setJoining] = useState(false);
 
 	useEffect(() => {
+		(window as any).__openFriends = () => {
+			localStorage.removeItem("open_friends");
+			setShowFriends(true);
+		};
 		if (localStorage.getItem("open_friends") === "1") {
 			localStorage.removeItem("open_friends");
 			setShowFriends(true);

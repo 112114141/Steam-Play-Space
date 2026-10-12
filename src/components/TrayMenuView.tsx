@@ -34,8 +34,8 @@ export function TrayMenuView() {
 	};
 
 	return (
-		<div className="h-screen w-screen bg-transparent flex items-start justify-center p-0 select-none">
-			<div className="mt-2 w-[230px] rounded-2xl bg-card border border-border shadow-2xl overflow-hidden">
+		<div className="h-screen w-screen bg-transparent flex items-end justify-center p-0 select-none">
+			<div className="mb-2 w-[230px] rounded-2xl bg-card border border-border shadow-2xl overflow-hidden">
 				<div className="px-4 py-3 border-b border-border">
 					<p className="text-xs font-bold text-foreground">Steam Play Space</p>
 				</div>
