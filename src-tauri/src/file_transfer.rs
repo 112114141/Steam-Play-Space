@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 const FILE_CHANNEL: i32 = 2;
-const CHUNK_SIZE: usize = 1100;
+const CHUNK_SIZE: usize = 1187;
 
 const MSG_FILE_META: u8 = 1;
 const MSG_FILE_CHUNK: u8 = 2;
@@ -169,6 +169,8 @@ pub async fn send_file_to_lobby(
         let mut offset: u64 = 0;
         let mut buf = vec![0u8; CHUNK_SIZE];
         let start_time = Instant::now();
+        let mut chunk_count: u64 = 0;
+        let mut last_emit_time = Instant::now();
 
         while offset < file_size {
             if cancel_flag.load(Ordering::Relaxed) {
@@ -205,30 +207,32 @@ pub async fn send_file_to_lobby(
             }
 
             offset += n as u64;
+            chunk_count += 1;
 
-            let elapsed = start_time.elapsed().as_secs_f64();
-            let progress = if file_size > 0 {
-                (offset as f64 / file_size as f64 * 100.0) as u8
-            } else {
-                100
-            };
-            let speed = if elapsed > 0.0 { offset as f64 / elapsed } else { 0.0 };
-            let time_left = if speed > 0.0 { (file_size - offset) as f64 / speed } else { 0.0 };
+            if chunk_count % 50 == 0 || last_emit_time.elapsed() > Duration::from_millis(200) || offset >= file_size {
+                let elapsed = start_time.elapsed().as_secs_f64();
+                let progress = if file_size > 0 {
+                    (offset as f64 / file_size as f64 * 100.0) as u8
+                } else {
+                    100
+                };
+                let speed = if elapsed > 0.0 { offset as f64 / elapsed } else { 0.0 };
+                let time_left = if speed > 0.0 { (file_size - offset) as f64 / speed } else { 0.0 };
 
-            let _ = app_handle_clone.emit("file-progress", serde_json::json!({
-                "file_id": file_id,
-                "progress": progress,
-                "file_name": &file_name_clone,
-                "direction": "send",
-                "speed": speed,
-                "time_left": time_left,
-            }));
+                let _ = app_handle_clone.emit("file-progress", serde_json::json!({
+                    "file_id": file_id,
+                    "progress": progress,
+                    "file_name": &file_name_clone,
+                    "direction": "send",
+                    "speed": speed,
+                    "time_left": time_left,
+                }));
+                last_emit_time = Instant::now();
+            }
 
-            thread::sleep(if voice_active.load(Ordering::Relaxed) {
-                Duration::from_millis(1)
-            } else {
-                Duration::from_micros(100)
-            });
+            if voice_active.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(1));
+            }
         }
 
         let complete = build_complete(file_id);
@@ -294,6 +298,8 @@ pub fn start_file_receiver(
         save_path: String,
         bytes_received: u64,
         start_time: Instant,
+        chunk_count: u64,
+        last_emit_time: Instant,
     }
 
     let receiving: Arc<Mutex<HashMap<u32, RecvFile>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -407,6 +413,8 @@ pub fn start_file_receiver(
                                     save_path: saved_str,
                                     bytes_received: 0,
                                     start_time: Instant::now(),
+                                    chunk_count: 0,
+                                    last_emit_time: Instant::now(),
                                 },
                             );
                         }
@@ -432,35 +440,39 @@ pub fn start_file_receiver(
                                     let _ = f.write_all(chunk_data);
                                 }
                                 file.bytes_received = offset + chunk_data.len() as u64;
+                                file.chunk_count += 1;
 
-                                let elapsed = file.start_time.elapsed().as_secs_f64();
-                                let progress = if file.size > 0 {
-                                    (file.bytes_received as f64 / file.size as f64 * 100.0) as u8
-                                } else {
-                                    100
-                                };
-                                let speed = if elapsed > 0.0 {
-                                    file.bytes_received as f64 / elapsed
-                                } else {
-                                    0.0
-                                };
-                                let time_left = if speed > 0.0 && file.size > file.bytes_received {
-                                    (file.size - file.bytes_received) as f64 / speed
-                                } else {
-                                    0.0
-                                };
+                                if file.chunk_count % 50 == 0 || file.last_emit_time.elapsed() > Duration::from_millis(200) || file.bytes_received >= file.size {
+                                    let elapsed = file.start_time.elapsed().as_secs_f64();
+                                    let progress = if file.size > 0 {
+                                        (file.bytes_received as f64 / file.size as f64 * 100.0) as u8
+                                    } else {
+                                        100
+                                    };
+                                    let speed = if elapsed > 0.0 {
+                                        file.bytes_received as f64 / elapsed
+                                    } else {
+                                        0.0
+                                    };
+                                    let time_left = if speed > 0.0 && file.size > file.bytes_received {
+                                        (file.size - file.bytes_received) as f64 / speed
+                                    } else {
+                                        0.0
+                                    };
 
-                                let _ = app_handle.emit(
-                                    "file-progress",
-                                    serde_json::json!({
-                                        "file_id": file_id,
-                                        "progress": progress,
-                                        "file_name": &file.name,
-                                        "direction": "recv",
-                                        "speed": speed,
-                                        "time_left": time_left,
-                                    }),
-                                );
+                                    let _ = app_handle.emit(
+                                        "file-progress",
+                                        serde_json::json!({
+                                            "file_id": file_id,
+                                            "progress": progress,
+                                            "file_name": &file.name,
+                                            "direction": "recv",
+                                            "speed": speed,
+                                            "time_left": time_left,
+                                        }),
+                                    );
+                                    file.last_emit_time = Instant::now();
+                                }
                             }
                         }
                         3 if data.len() >= 5 => {
@@ -519,7 +531,7 @@ pub fn start_file_receiver(
                     }
                 }
             } else {
-                std::thread::sleep(std::time::Duration::from_millis(2));
+                std::thread::sleep(std::time::Duration::from_micros(500));
             }
         }
     });
