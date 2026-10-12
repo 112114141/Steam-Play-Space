@@ -631,6 +631,8 @@ async fn main() {
             steam_commands::show_main_window,
             steam_commands::quit_app,
             steam_commands::scan_local_ports,
+            steam_commands::read_clipboard_files,
+            steam_commands::save_temp_file,
             steam_commands::start_udp_host,
             steam_commands::start_udp_client,
             steam_commands::stop_udp_tunnel,

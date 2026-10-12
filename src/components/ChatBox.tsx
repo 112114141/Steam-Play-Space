@@ -74,7 +74,9 @@ export function ChatBox() {
 				setDragOver(false);
 				const paths = event.payload.paths;
 				if (paths && paths.length > 0) {
-					invoke("send_file_to_lobby", {filePath: paths[0]}).catch(console.error);
+					for (const path of paths) {
+						invoke("send_file_to_lobby", {filePath: path}).catch(console.error);
+					}
 				}
 			} else {
 				setDragOver(false);
@@ -181,6 +183,43 @@ export function ChatBox() {
 			await invoke("send_file_to_lobby", {filePath: imagePath});
 		} catch (e) {
 			console.error("发送图片失败", e);
+		}
+	};
+
+	const handlePaste = async (e: React.ClipboardEvent) => {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+
+		for (const item of items) {
+			if (item.type.startsWith("image/")) {
+				e.preventDefault();
+				const file = item.getAsFile();
+				if (file) {
+					try {
+						const ext = file.type.split("/")[1] || "png";
+						const tempName = `clipboard_${Date.now()}.${ext}`;
+						const arrayBuffer = await file.arrayBuffer();
+						const data = Array.from(new Uint8Array(arrayBuffer));
+						const tempPath = await invoke<string>("save_temp_file", {fileName: tempName, data});
+						await invoke("send_file_to_lobby", {filePath: tempPath}).catch(console.error);
+					} catch (err) {
+						console.error("粘贴图片发送失败", err);
+					}
+				}
+				return;
+			}
+		}
+
+		const text = e.clipboardData?.getData("text") || "";
+		if (!text) {
+			try {
+				const paths = await invoke<string[]>("read_clipboard_files");
+				if (paths.length > 0) {
+					for (const path of paths) {
+						await invoke("send_file_to_lobby", {filePath: path}).catch(console.error);
+					}
+				}
+			} catch {}
 		}
 	};
 
@@ -369,11 +408,12 @@ export function ChatBox() {
 				>
 					<FileText className="w-4 h-4" />
 				</button>
-				<input
-					value={input}
-					onChange={(e) => setInput(e.target.value)}
-					onKeyDown={handleKeyDown}
-					placeholder="输入消息..."
+			<input
+				value={input}
+				onChange={(e) => setInput(e.target.value)}
+				onKeyDown={handleKeyDown}
+				onPaste={handlePaste}
+				placeholder="输入消息...（可粘贴文件/图片）"
 					className="flex-1 h-10 px-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/50 transition-colors"
 				/>
 				<button

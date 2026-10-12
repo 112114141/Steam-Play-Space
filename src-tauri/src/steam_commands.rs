@@ -494,6 +494,39 @@ pub fn get_local_user_id(state: State<'_, AppState>) -> String {
     state.steam_client.user().steam_id().raw().to_string()
 }
 
+/// 读取剪贴板中的文件路径（从文件管理器复制的文件/文件夹）
+#[tauri::command]
+pub async fn read_clipboard_files() -> AppResult<Vec<String>> {
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Add-Type -AssemblyName System.Windows.Forms; $f = [System.Windows.Forms.Clipboard]::GetFileDropList(); $f | ForEach-Object { $_ }"
+        ])
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|e| AppError::Internal(format!("PowerShell 执行失败: {}", e)))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let paths: Vec<String> = stdout
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    Ok(paths)
+}
+
+/// 保存二进制数据为临时文件，返回文件路径
+#[tauri::command]
+pub async fn save_temp_file(file_name: String, data: Vec<u8>) -> AppResult<String> {
+    let temp_dir = std::env::temp_dir();
+    let path = temp_dir.join(&file_name);
+    std::fs::write(&path, &data)
+        .map_err(|e| AppError::Internal(format!("保存临时文件失败: {}", e)))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// 在托盘弹出窗口中使用：显示主窗口
 #[tauri::command]
 pub fn show_main_window(app_handle: tauri::AppHandle, open_friends: Option<bool>) {
