@@ -106,7 +106,11 @@ pub fn get_voice_users(state: State<'_, AppState>) -> Vec<VoiceUser> {
         .into_iter()
         .filter_map(|m| {
             if matchmaking.get_lobby_member_data(lobby_id, m, "voice").as_deref() == Some("1") {
-                let name = if m == my_id { "我".to_string() } else { friends.get_friend(m).name() };
+                let name = if m == my_id {
+                    format!("{}（我）", friends.get_friend(m).name())
+                } else {
+                    friends.get_friend(m).name()
+                };
                 Some(VoiceUser {
                     id: m.raw().to_string(),
                     name,
