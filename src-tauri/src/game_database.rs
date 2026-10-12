@@ -70,15 +70,22 @@ static SYSTEM_PROCESSES: &[&str] = &[
     "ctfmon.exe", "textinputhost.exe",
 ];
 
+static GENERIC_PROCESSES: &[&str] = &["java.exe", "python.exe", "node.exe", "ruby.exe"];
+
 pub fn identify_game(process_name: &str, port: u16) -> Option<GameInfo> {
     for entry in GAME_DATABASE {
         if entry.process_name.eq_ignore_ascii_case(process_name) && entry.port == port {
             return Some(entry.info.clone());
         }
     }
-    for entry in GAME_DATABASE {
-        if entry.process_name.eq_ignore_ascii_case(process_name) {
-            return Some(entry.info.clone());
+    let is_generic = GENERIC_PROCESSES
+        .iter()
+        .any(|p| p.eq_ignore_ascii_case(process_name));
+    if !is_generic {
+        for entry in GAME_DATABASE {
+            if entry.process_name.eq_ignore_ascii_case(process_name) {
+                return Some(entry.info.clone());
+            }
         }
     }
     None
