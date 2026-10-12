@@ -7,9 +7,14 @@ import {
 	CheckCircle2,
 	XCircle,
 	RefreshCw,
-	Radar
+	Radar,
+	Star,
+	Copy,
+	ChevronDown,
+	ChevronRight,
+	AlertTriangle,
 } from "lucide-react";
-import {useState, useEffect, useCallback, useRef} from "react";
+import {useState, useEffect, useCallback, useRef, useMemo} from "react";
 import {toast} from "react-hot-toast";
 import {useApp} from "../AppContext";
 import {JoinLobbyResult} from "../types";
@@ -19,6 +24,8 @@ interface PortProcessInfo {
 	pid: number;
 	process_name: string;
 	protocol: string;
+	friendly_name: string | null;
+	category: string;
 }
 
 const GAME_PRESETS = [
@@ -29,6 +36,12 @@ const GAME_PRESETS = [
 	{name: "帕鲁", port: 8211, protocol: "UDP"},
 	{name: "PZ", port: 16261, protocol: "UDP"},
 ];
+
+interface ContextMenu {
+	x: number;
+	y: number;
+	info: PortProcessInfo;
+}
 
 export function ConnectionPanel() {
 	const {localPort, setLocalPort, setCurrentLobbyId, refreshStatus, setLastHostId, settings, setSettings} = useApp();
@@ -44,20 +57,37 @@ export function ConnectionPanel() {
 	const [showConfirmModal, setShowConfirmModal] = useState(false);
 	const [dontShowAgain, setDontShowAgain] = useState(false);
 
-	const loadKnownPorts = (): Set<number> => {
-		const saved = localStorage.getItem("p2p_known_ports");
-		if (saved) {
-			try {
-				return new Set(JSON.parse(saved) as number[]);
-			} catch {
-				return new Set();
-			}
-		}
-		return new Set();
-	};
+	const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+	const [newPorts, setNewPorts] = useState<Set<number>>(new Set());
+	const [showFolded, setShowFolded] = useState(false);
 
-	const saveKnownPorts = (ports: Set<number>) => {
-		localStorage.setItem("p2p_known_ports", JSON.stringify([...ports]));
+	const [focusProcesses, setFocusProcesses] = useState<Set<string>>(() => {
+		const saved = localStorage.getItem("p2p_focus_processes");
+		return saved ? new Set(JSON.parse(saved)) : new Set();
+	});
+	const [foldedProcesses, setFoldedProcesses] = useState<Set<string>>(() => {
+		const saved = localStorage.getItem("p2p_folded_processes");
+		return saved ? new Set(JSON.parse(saved)) : new Set();
+	});
+	const [portUsageCount, setPortUsageCount] = useState<Record<number, number>>(() => {
+		const saved = localStorage.getItem("p2p_port_usage_count");
+		return saved ? JSON.parse(saved) : {};
+	});
+
+	const saveFocusProcesses = (s: Set<string>) => {
+		localStorage.setItem("p2p_focus_processes", JSON.stringify([...s]));
+		setFocusProcesses(s);
+	};
+	const saveFoldedProcesses = (s: Set<string>) => {
+		localStorage.setItem("p2p_folded_processes", JSON.stringify([...s]));
+		setFoldedProcesses(s);
+	};
+	const incrementPortUsage = (port: number) => {
+		setPortUsageCount((prev) => {
+			const next = {...prev, [port]: (prev[port] || 0) + 1};
+			localStorage.setItem("p2p_port_usage_count", JSON.stringify(next));
+			return next;
+		});
 	};
 
 	const scanPorts = useCallback(async () => {
@@ -66,23 +96,39 @@ export function ConnectionPanel() {
 			const infos = await invoke<PortProcessInfo[]>("scan_local_ports");
 			setPortInfos(infos);
 
-			const knownPorts = loadKnownPorts();
 			const currentPortSet = new Set(infos.map((i) => i.port));
 
-			if (autoDetect && knownPorts.size > 0) {
-				const newPorts = infos.filter((i) => !knownPorts.has(i.port));
-				if (newPorts.length > 0) {
-					const first = newPorts[0];
+			if (prevPortsRef.current.size > 0) {
+				const newSet = new Set<number>();
+				for (const info of infos) {
+					if (!prevPortsRef.current.has(info.port)) {
+						newSet.add(info.port);
+					}
+				}
+				if (newSet.size > 0) {
+					setNewPorts(newSet);
+					setTimeout(() => setNewPorts(new Set()), 3000);
+				}
+			}
+
+			if (autoDetect && prevPortsRef.current.size > 0) {
+				const newGamePorts = infos.filter(
+					(i) => !prevPortsRef.current.has(i.port) && i.category === "game"
+				);
+				if (newGamePorts.length > 0) {
+					const first = newGamePorts[0];
 					setLocalPort(first.port);
 					if (settings.autoProtocolSwitch) {
 						setSettings({protocol: first.protocol === "UDP" ? "UDP" : "TCP"});
 					}
-					toast.success(`检测到新端口 ${first.port} (${first.process_name})`, {icon: "📡"});
+					toast.success(
+						`检测到 ${first.friendly_name || first.process_name} (${first.port})`,
+						{icon: "🎮"}
+					);
 				}
 			}
 
 			prevPortsRef.current = currentPortSet;
-			saveKnownPorts(currentPortSet);
 		} catch (e) {
 			console.error("端口扫描失败:", e);
 		} finally {
@@ -96,49 +142,144 @@ export function ConnectionPanel() {
 
 	useEffect(() => {
 		if (!autoDetect) return;
-
-		const interval = setInterval(async () => {
-			try {
-				const infos = await invoke<PortProcessInfo[]>("scan_local_ports");
-				setPortInfos(infos);
-
-				const currentPortSet = new Set(infos.map((i) => i.port));
-				const newPorts = infos.filter(
-					(i) => !prevPortsRef.current.has(i.port)
-				);
-
-				if (newPorts.length > 0) {
-					const first = newPorts[0];
-					setLocalPort(first.port);
-					if (settings.autoProtocolSwitch) {
-						setSettings({protocol: first.protocol === "UDP" ? "UDP" : "TCP"});
-					}
-					toast.success(
-						`检测到新端口 ${first.port} (${first.process_name})`,
-						{icon: "📡"}
-					);
-				}
-
-				prevPortsRef.current = currentPortSet;
-				saveKnownPorts(currentPortSet);
-			} catch (e) {
-				console.error("自动检测失败:", e);
-			}
-		}, 5000);
-
+		const interval = setInterval(scanPorts, 2000);
 		return () => clearInterval(interval);
-	}, [autoDetect, settings.autoProtocolSwitch, setLocalPort, setSettings]);
+	}, [autoDetect, scanPorts]);
+
+	useEffect(() => {
+		const handler = () => setContextMenu(null);
+		window.addEventListener("click", handler);
+		return () => window.removeEventListener("click", handler);
+	}, []);
+
+	const {focusPorts, gamePorts, otherPorts, foldedPorts} = useMemo(() => {
+		const search = processSearch.trim().toLowerCase();
+		const filtered = portInfos.filter((info) => {
+			if (search === "") return true;
+			return (
+				info.process_name.toLowerCase().includes(search) ||
+				info.port.toString().includes(search) ||
+				(info.friendly_name?.toLowerCase().includes(search) ?? false)
+			);
+		});
+
+		const focus: PortProcessInfo[] = [];
+		const game: PortProcessInfo[] = [];
+		const other: PortProcessInfo[] = [];
+		const folded: PortProcessInfo[] = [];
+
+		for (const info of filtered) {
+			const lowerName = info.process_name.toLowerCase();
+			if (foldedProcesses.has(lowerName)) {
+				folded.push(info);
+			} else if (focusProcesses.has(lowerName)) {
+				focus.push(info);
+			} else if (info.category === "game") {
+				game.push(info);
+			} else if (info.category === "system") {
+				folded.push(info);
+			} else {
+				other.push(info);
+			}
+		}
+
+		const sortByUsage = (a: PortProcessInfo, b: PortProcessInfo) => {
+			const ua = portUsageCount[a.port] || 0;
+			const ub = portUsageCount[b.port] || 0;
+			if (ub !== ua) return ub - ua;
+			return a.port - b.port;
+		};
+		focus.sort(sortByUsage);
+		game.sort(sortByUsage);
+		other.sort(sortByUsage);
+		folded.sort(sortByUsage);
+
+		return {focusPorts: focus, gamePorts: game, otherPorts: other, foldedPorts: folded};
+	}, [portInfos, processSearch, focusProcesses, foldedProcesses, portUsageCount]);
 
 	const isPortListening = portInfos.some((info) => info.port === localPort);
+	const occupiedBy = portInfos.find((info) => info.port === localPort);
 
-	const filteredPorts =
-		processSearch.trim() === ""
-			? portInfos
-			: portInfos.filter((info) =>
-					info.process_name
-						.toLowerCase()
-						.includes(processSearch.toLowerCase())
-				);
+	const selectPort = (info: PortProcessInfo) => {
+		setLocalPort(info.port);
+		incrementPortUsage(info.port);
+		if (settings.autoProtocolSwitch) {
+			setSettings({protocol: info.protocol === "UDP" ? "UDP" : "TCP"});
+		}
+	};
+
+	const toggleFocus = (processName: string) => {
+		const lower = processName.toLowerCase();
+		const newSet = new Set(focusProcesses);
+		if (newSet.has(lower)) newSet.delete(lower);
+		else newSet.add(lower);
+		saveFocusProcesses(newSet);
+	};
+	const toggleFold = (processName: string) => {
+		const lower = processName.toLowerCase();
+		const newSet = new Set(foldedProcesses);
+		if (newSet.has(lower)) newSet.delete(lower);
+		else newSet.add(lower);
+		saveFoldedProcesses(newSet);
+	};
+	const copyPort = async (port: number) => {
+		try {
+			await navigator.clipboard.writeText(port.toString());
+			toast.success(`已复制 ${port}`);
+		} catch {}
+	};
+
+	const renderPortItem = (info: PortProcessInfo) => {
+		const isSelected = localPort === info.port;
+		const isFocus = focusProcesses.has(info.process_name.toLowerCase());
+		const isNew = newPorts.has(info.port);
+		const displayName = info.friendly_name || info.process_name;
+
+		return (
+			<button
+				key={`${info.port}-${info.pid}`}
+				onClick={() => selectPort(info)}
+				onContextMenu={(e) => {
+					e.preventDefault();
+					setContextMenu({x: e.clientX, y: e.clientY, info});
+				}}
+				className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all active:scale-95 border ${
+					isSelected
+						? "bg-primary text-primary-foreground border-primary"
+						: isFocus
+						? "bg-yellow-500/15 text-yellow-600 border-yellow-500/30 hover:bg-yellow-500/25"
+						: info.category === "game"
+						? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20"
+						: "bg-primary/10 hover:bg-primary/20 text-primary border-transparent"
+				}`}
+				title={`PID: ${info.pid} | ${info.protocol} | ${info.process_name}`}
+			>
+				{isNew && <span className="mr-1 text-[9px]">🆕</span>}
+				{info.port}
+				<span className={`ml-1.5 text-[9px] font-sans ${info.protocol === "UDP" ? "text-orange-400" : "text-green-400"}`}>
+					{info.protocol}
+				</span>
+				<span className="opacity-70 ml-1 font-sans text-[10px]">
+					{displayName}
+				</span>
+			</button>
+		);
+	};
+
+	const renderGroup = (label: string, ports: PortProcessInfo[], icon?: string, className?: string) => {
+		if (ports.length === 0) return null;
+		return (
+			<div className="space-y-1">
+				<div className={`text-[10px] font-bold flex items-center gap-1 ${className || "text-muted-foreground"}`}>
+					{icon && <span>{icon}</span>}
+					{label}
+				</div>
+				<div className="flex flex-wrap gap-2">
+					{ports.map(renderPortItem)}
+				</div>
+			</div>
+		);
+	};
 
 	const doCreateLobby = async () => {
 		if (localPort < 1 || localPort > 65535) {
@@ -237,53 +378,56 @@ export function ConnectionPanel() {
 
 	return (
 		<div className="w-full space-y-5">
-			{portInfos.length > 0 && (
-				<div className="p-3 rounded-2xl border border-primary/20 bg-primary/5 space-y-2">
-					<div className="flex items-center gap-2 text-[11px] font-bold text-primary">
-						<Search className="w-3.5 h-3.5" />
-						检测到本地监听端口
+			<div className="p-3 rounded-2xl border border-primary/20 bg-primary/5 space-y-2">
+				<div className="flex items-center gap-2 text-[11px] font-bold text-primary">
+					<Search className="w-3.5 h-3.5" />
+					本地监听端口
+					<span className="ml-auto text-[10px] font-normal opacity-60">
+						右键端口可重点关注/折叠
+					</span>
+				</div>
+				<input
+					type="text"
+					value={processSearch}
+					onChange={(e) => setProcessSearch(e.target.value)}
+					className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+					placeholder="搜索端口号或进程名..."
+				/>
+				{portInfos.length === 0 ? (
+					<div className="text-center py-6 text-xs text-muted-foreground leading-relaxed">
+						暂未检测到监听端口
+						<br />
+						请先在游戏中创建局域网房间
 					</div>
-					<input
-						type="text"
-						value={processSearch}
-						onChange={(e) => setProcessSearch(e.target.value)}
-						className="w-full h-9 px-3 text-xs bg-background/50 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-						placeholder="搜索进程名过滤..."
-					/>
-					<div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-						{filteredPorts.map((info) => (
-							<button
-								key={`${info.port}-${info.pid}`}
-								onClick={() => {
-									setLocalPort(info.port);
-									if (settings.autoProtocolSwitch) {
-										setSettings({protocol: info.protocol === "UDP" ? "UDP" : "TCP"});
-									}
-								}}
-								className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all active:scale-95 ${
-									localPort === info.port
-										? "bg-primary text-primary-foreground"
-										: "bg-primary/10 hover:bg-primary/20 text-primary"
-								}`}
-								title={`PID: ${info.pid} | ${info.protocol}`}
-							>
-								{info.port}
-								<span className={`ml-1.5 text-[9px] font-sans ${info.protocol === "UDP" ? "text-orange-400" : "text-green-400"}`}>
-									{info.protocol}
-								</span>
-								<span className="opacity-60 ml-1 font-sans">
-									{info.process_name}
-								</span>
-							</button>
-						))}
-						{filteredPorts.length === 0 && (
+				) : (
+					<div className="max-h-56 overflow-y-auto space-y-2">
+						{renderGroup("重点关注", focusPorts, "⭐", "text-yellow-500")}
+						{renderGroup("游戏端口", gamePorts, "🎮", "text-green-500")}
+						{renderGroup("其他端口", otherPorts)}
+						{foldedPorts.length > 0 && (
+							<div className="space-y-1">
+								<button
+									onClick={() => setShowFolded(!showFolded)}
+									className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+								>
+									{showFolded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+									已折叠 ({foldedPorts.length})
+								</button>
+								{showFolded && (
+									<div className="flex flex-wrap gap-2 opacity-60">
+										{foldedPorts.map(renderPortItem)}
+									</div>
+								)}
+							</div>
+						)}
+						{focusPorts.length === 0 && gamePorts.length === 0 && otherPorts.length === 0 && foldedPorts.length === 0 && (
 							<span className="text-xs text-muted-foreground px-2 py-1">
-								无匹配进程
+								无匹配端口
 							</span>
 						)}
 					</div>
-				</div>
-			)}
+				)}
+			</div>
 
 			<div className="space-y-1">
 				<div className="flex flex-wrap gap-1.5 ml-2 mb-1">
@@ -292,6 +436,7 @@ export function ConnectionPanel() {
 							key={preset.port}
 							onClick={() => {
 								setLocalPort(preset.port);
+								incrementPortUsage(preset.port);
 								if (settings.autoProtocolSwitch) {
 									setSettings({protocol: preset.protocol as "TCP" | "UDP"});
 								}
@@ -371,7 +516,7 @@ export function ConnectionPanel() {
 						className={`text-[11px] ml-2 ${isPortListening ? "text-green-500" : "text-muted-foreground"}`}
 					>
 						{isPortListening
-							? "✓ 端口正在监听，服务已就绪"
+							? `✓ 端口正在监听 (${occupiedBy?.friendly_name || occupiedBy?.process_name})`
 							: "端口未监听，请先在游戏中开启联机"}
 					</p>
 				)}
@@ -380,9 +525,15 @@ export function ConnectionPanel() {
 						⚠ 端口号必须在 1-65535 之间
 					</p>
 				)}
+				{occupiedBy && occupiedBy.category !== "game" && !focusProcesses.has(occupiedBy.process_name.toLowerCase()) && (
+					<p className="text-[11px] ml-2 text-yellow-500 flex items-center gap-1">
+						<AlertTriangle className="w-3 h-3" />
+						该端口被 {occupiedBy.process_name} 占用，确定是游戏端口？
+					</p>
+				)}
 			{autoDetect && (
 				<p className="text-[11px] ml-2 text-primary/70">
-					📡 每 5 秒扫描，检测到新端口将自动填入
+					📡 每 2 秒扫描，检测到游戏端口将自动填入
 				</p>
 			)}
 			<div className="flex items-center gap-2 ml-2 mt-1">
@@ -468,6 +619,53 @@ export function ConnectionPanel() {
 			<p className="text-[11px] text-muted-foreground text-center leading-relaxed">
 				创建房间后可邀请好友加入，对方通过房间 ID 即可连接。
 			</p>
+
+			{contextMenu && (
+				<>
+					<div
+						className="fixed inset-0 z-[199]"
+						onClick={() => setContextMenu(null)}
+					/>
+					<div
+						className="fixed z-[200] bg-card border border-border rounded-lg shadow-xl py-1 text-xs min-w-[160px]"
+						style={{
+							left: Math.min(contextMenu.x, window.innerWidth - 180),
+							top: Math.min(contextMenu.y, window.innerHeight - 120),
+						}}
+					>
+						<button
+							onClick={() => {
+								toggleFocus(contextMenu.info.process_name);
+								setContextMenu(null);
+							}}
+							className="w-full px-4 py-2 text-left hover:bg-primary/10 flex items-center gap-2 text-foreground"
+						>
+							<Star className="w-3 h-3" />
+							{focusProcesses.has(contextMenu.info.process_name.toLowerCase()) ? "取消重点关注" : "重点关注此进程"}
+						</button>
+						<button
+							onClick={() => {
+								toggleFold(contextMenu.info.process_name);
+								setContextMenu(null);
+							}}
+							className="w-full px-4 py-2 text-left hover:bg-primary/10 flex items-center gap-2 text-foreground"
+						>
+							<ChevronRight className="w-3 h-3" />
+							{foldedProcesses.has(contextMenu.info.process_name.toLowerCase()) ? "取消折叠" : "折叠此进程"}
+						</button>
+						<button
+							onClick={() => {
+								copyPort(contextMenu.info.port);
+								setContextMenu(null);
+							}}
+							className="w-full px-4 py-2 text-left hover:bg-primary/10 flex items-center gap-2 text-foreground"
+						>
+							<Copy className="w-3 h-3" />
+							复制端口号
+						</button>
+					</div>
+				</>
+			)}
 
 			{showConfirmModal && (
 				<>

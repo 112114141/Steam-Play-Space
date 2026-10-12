@@ -551,107 +551,91 @@ pub fn show_main_window(app_handle: tauri::AppHandle, open_friends: Option<bool>
 pub fn quit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
-#[derive(Serialize, Clone)]
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PortProcessInfo {
     pub port: u16,
     pub pid: u32,
     pub process_name: String,
     pub protocol: String,
+    pub friendly_name: Option<String>,
+    pub category: String,
 }
 
 /// 扫描本地正在监听的 TCP/UDP 端口及其所属进程名
 #[tauri::command]
 pub async fn scan_local_ports() -> AppResult<Vec<PortProcessInfo>> {
-    let netstat_output = std::process::Command::new("netstat")
-        .args(["-ano"])
-        .creation_flags(0x08000000)
-        .output()
-        .map_err(|e| AppError::Internal(format!("netstat 执行失败: {}", e)))?;
+    use netstat2::{
+        get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState,
+    };
+    use sysinfo::{Pid, System};
 
-    let netstat_stdout = String::from_utf8_lossy(&netstat_output.stdout);
-    let mut port_pid_proto_list: Vec<(u16, u32, String)> = Vec::new();
+    let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
+    let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
+    let sockets_info = get_sockets_info(af_flags, proto_flags)
+        .map_err(|e| AppError::Internal(format!("端口扫描失败: {}", e)))?;
 
-    for line in netstat_stdout.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 4 {
-            continue;
-        }
-        let proto = parts[0].to_uppercase();
-        if proto != "TCP" && proto != "UDP" {
-            continue;
-        }
-        let is_listening = parts.iter().any(|&p| p == "LISTENING");
-        if proto == "TCP" && !is_listening {
-            continue;
-        }
-        if let Some(port_str) = parts[1].rsplit(':').next() {
-            if let Ok(port) = port_str.parse::<u16>() {
-                if port >= 1024 {
-                    if let Ok(pid) = parts[parts.len() - 1].parse::<u32>() {
-                        port_pid_proto_list.push((port, pid, proto));
-                    }
-                }
-            }
-        }
-    }
-
-    if port_pid_proto_list.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let tasklist_output = std::process::Command::new("tasklist")
-        .args(["/fo", "csv", "/nh"])
-        .creation_flags(0x08000000)
-        .output()
-        .map_err(|e| AppError::Internal(format!("tasklist 执行失败: {}", e)))?;
-
-    let tasklist_stdout = String::from_utf8_lossy(&tasklist_output.stdout);
-    let mut pid_name_map: std::collections::HashMap<u32, String> =
-        std::collections::HashMap::new();
-
-    for line in tasklist_stdout.lines() {
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() >= 2 {
-            let name = parts[0].trim_matches('"');
-            let pid_str = parts[1].trim_matches('"');
-            if let Ok(pid) = pid_str.parse::<u32>() {
-                pid_name_map.insert(pid, name.to_string());
-            }
-        }
-    }
+    let mut sys = System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
     let mut result: Vec<PortProcessInfo> = Vec::new();
-    let mut seen_ports = std::collections::HashSet::new();
-    let mut tcp_ports = std::collections::HashSet::new();
+    let mut seen_ports: std::collections::HashSet<u16> = std::collections::HashSet::new();
 
-    for (port, _, proto) in &port_pid_proto_list {
-        if proto == "TCP" {
-            tcp_ports.insert(*port);
+    for si in sockets_info {
+        let (port, protocol) = match si.protocol_socket_info {
+            ProtocolSocketInfo::Tcp(tcp_si) => {
+                if tcp_si.state != TcpState::Listen {
+                    continue;
+                }
+                (tcp_si.local_port, "TCP")
+            }
+            ProtocolSocketInfo::Udp(udp_si) => (udp_si.local_port, "UDP"),
+        };
+
+        if port < 1024 {
+            continue;
         }
-    }
 
-    for (port, pid, proto) in &port_pid_proto_list {
-        if seen_ports.contains(port) {
-            if proto == "TCP" {
-                if let Some(entry) = result.iter_mut().find(|e| e.port == *port) {
+        let pid = si.associated_pids.first().copied().unwrap_or(0);
+        let process_name = if pid > 0 {
+            sys.process(Pid::from(pid as usize))
+                .map(|p| p.name().to_string_lossy().to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        } else {
+            "unknown".to_string()
+        };
+
+        if process_name.eq_ignore_ascii_case("steam_play_space.exe") {
+            continue;
+        }
+
+        if seen_ports.contains(&port) {
+            if protocol == "TCP" {
+                if let Some(entry) = result.iter_mut().find(|e| e.port == port) {
                     entry.protocol = "TCP".to_string();
                 }
             }
             continue;
         }
-        seen_ports.insert(*port);
-        let process_name = pid_name_map
-            .get(pid)
-            .cloned()
-            .unwrap_or_else(|| "unknown".to_string());
-        if process_name.eq_ignore_ascii_case("steam_play_space.exe") {
-            continue;
-        }
+        seen_ports.insert(port);
+
+        let game_info = crate::game_database::identify_game(&process_name, port);
+        let friendly_name = game_info.as_ref().map(|g| g.friendly_name.to_string());
+        let category = if game_info.is_some() {
+            "game".to_string()
+        } else if crate::game_database::is_system_process(&process_name) {
+            "system".to_string()
+        } else {
+            "unknown".to_string()
+        };
+
         result.push(PortProcessInfo {
-            port: *port,
-            pid: *pid,
+            port,
+            pid,
             process_name,
-            protocol: proto.clone(),
+            protocol: protocol.to_string(),
+            friendly_name,
+            category,
         });
     }
 

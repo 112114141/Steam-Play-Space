@@ -2,6 +2,7 @@ pub mod app_state;
 pub mod chat;
 pub mod error;
 pub mod file_transfer;
+pub mod game_database;
 pub mod net_manager;
 pub mod steam_commands;
 pub mod steam_utils;
