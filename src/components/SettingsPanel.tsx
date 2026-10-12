@@ -2,6 +2,7 @@ import {invoke} from "@tauri-apps/api/core";
 import {open} from "@tauri-apps/plugin-dialog";
 import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves, Folder, AlertCircle} from "lucide-react";
 import {useApp} from "../AppContext";
+import {voiceManager} from "../voice";
 import {useEffect, useState} from "react";
 
 interface Props {
@@ -328,7 +329,30 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 								min="0"
 								max="200"
 								value={settings.micVolume}
-								onChange={(e) => setSettings({micVolume: parseInt(e.target.value)})}
+								onChange={(e) => {
+									const v = parseInt(e.target.value);
+									setSettings({micVolume: v});
+									voiceManager.setMicVolume(v);
+								}}
+								className="w-full mt-1 accent-primary"
+							/>
+						</div>
+
+						<div>
+							<div className="flex items-center justify-between">
+								<label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">扬声器音量</label>
+								<span className="text-[10px] text-primary font-bold">{settings.speakerVolume}%</span>
+							</div>
+							<input
+								type="range"
+								min="0"
+								max="200"
+								value={settings.speakerVolume}
+								onChange={(e) => {
+									const v = parseInt(e.target.value);
+									setSettings({speakerVolume: v});
+									voiceManager.setSpeakerVolume(v);
+								}}
 								className="w-full mt-1 accent-primary"
 							/>
 						</div>

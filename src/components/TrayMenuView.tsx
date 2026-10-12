@@ -24,8 +24,7 @@ export function TrayMenuView() {
 	};
 
 	const inviteFriends = async () => {
-		await invoke("show_main_window");
-		await invoke("emit_open_friends");
+		await invoke("show_main_window", {openFriends: true});
 		await getCurrentWindow().close();
 	};
 

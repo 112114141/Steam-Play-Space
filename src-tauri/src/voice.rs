@@ -14,6 +14,7 @@ pub struct VoiceUser {
     pub id: String,
     pub name: String,
     pub speaking: bool,
+    pub muted: bool,
 }
 
 #[tauri::command]
@@ -65,6 +66,11 @@ pub fn join_voice(state: State<'_, AppState>) -> AppResult<()> {
         "voice",
         "1",
     );
+    state.steam_client.matchmaking().set_lobby_member_data(
+        lobby_id,
+        "voice_muted",
+        "0",
+    );
     log::info!("语音频道已加入");
     Ok(())
 }
@@ -80,6 +86,21 @@ pub fn leave_voice(state: State<'_, AppState>) -> AppResult<()> {
     };
     state.steam_client.matchmaking().set_lobby_member_data(lobby_id, "voice", "0");
     log::info!("语音频道已离开");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_voice_muted(state: State<'_, AppState>, muted: bool) -> AppResult<()> {
+    let lobby_id = match *state.state.lock() {
+        TunnelState::Hosting(id) => id,
+        TunnelState::Joined(id) => id,
+        TunnelState::Idle => return Ok(()),
+    };
+    state.steam_client.matchmaking().set_lobby_member_data(
+        lobby_id,
+        "voice_muted",
+        if muted { "1" } else { "0" },
+    );
     Ok(())
 }
 
@@ -101,26 +122,33 @@ pub fn get_voice_users(state: State<'_, AppState>) -> Vec<VoiceUser> {
     let members = matchmaking.lobby_members(lobby_id);
     let friends = state.steam_client.friends();
     let my_id = state.steam_client.user().steam_id();
+    let my_name = friends.name();
+    let my_id_str = my_id.raw().to_string();
 
-    members
+    let mut result: Vec<VoiceUser> = members
         .into_iter()
         .filter_map(|m| {
             if matchmaking.get_lobby_member_data(lobby_id, m, "voice").as_deref() == Some("1") {
                 let name = if m == my_id {
-                    format!("{}（我）", friends.get_friend(m).name())
+                    format!("{}（我）", my_name)
                 } else {
                     friends.get_friend(m).name()
                 };
+                let muted = matchmaking.get_lobby_member_data(lobby_id, m, "voice_muted").as_deref() == Some("1");
                 Some(VoiceUser {
                     id: m.raw().to_string(),
                     name,
                     speaking: m == my_id && state.voice_active.load(Ordering::Relaxed),
+                    muted,
                 })
             } else {
                 None
             }
         })
-        .collect()
+        .collect();
+
+    result.sort_by_key(|info| if info.id == my_id_str { 0 } else { 1 });
+    result
 }
 
 pub fn start_voice_receiver(app_handle: tauri::AppHandle, client: steamworks::Client) {

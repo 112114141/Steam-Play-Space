@@ -4,6 +4,7 @@ export interface VoiceSettings {
 	micDeviceId: string;
 	speakerDeviceId: string;
 	micVolume: number;
+	speakerVolume: number;
 	noiseSuppression: boolean;
 	echoCancellation: boolean;
 	autoGainControl: boolean;
@@ -15,10 +16,13 @@ export class VoiceManager {
 	private processor: ScriptProcessorNode | null = null;
 	private source: MediaStreamAudioSourceNode | null = null;
 	private gainNode: GainNode | null = null;
+	private speakerGainNode: GainNode | null = null;
 	private muted = false;
 	private active = false;
 	private playbackContext: AudioContext | null = null;
 	private nextPlayTime = 0;
+	private onSpeakingCallback?: (speaking: boolean) => void;
+	private lastSpeaking = false;
 
 	private jitterBuffer: Map<number, number[]> = new Map();
 	private nextSeq: number = -1;
@@ -46,6 +50,16 @@ export class VoiceManager {
 			if (this.muted || !this.active) return;
 			const input = e.inputBuffer.getChannelData(0);
 
+			let rms = 0;
+			for (let i = 0; i < input.length; i++) {
+				rms += input[i] * input[i];
+			}
+			rms = Math.sqrt(rms / input.length);
+			const speaking = rms > 0.01;
+			if (speaking !== this.lastSpeaking) {
+				this.lastSpeaking = speaking;
+				if (this.onSpeakingCallback) this.onSpeakingCallback(speaking);
+			}
 
 			const pcm = new Int16Array(input.length);
 			for (let i = 0; i < input.length; i++) {
@@ -56,12 +70,17 @@ export class VoiceManager {
 			invoke("send_voice_data", {data: Array.from(bytes)});
 		};
 
+		const silentGain = this.audioContext.createGain();
+		silentGain.gain.value = 0;
 		this.source.connect(this.gainNode);
 		this.gainNode.connect(processor);
-		processor.connect(this.audioContext.destination);
+		processor.connect(silentGain);
+		silentGain.connect(this.audioContext.destination);
 		this.processor = processor;
 
 		this.playbackContext = new AudioContext({sampleRate: 48000});
+		this.speakerGainNode = this.playbackContext.createGain();
+		this.speakerGainNode.gain.value = settings.speakerVolume / 100;
 		this.nextPlayTime = 0;
 
 		if (settings.speakerDeviceId) {
@@ -91,6 +110,7 @@ export class VoiceManager {
 		this.processor = null;
 		this.source = null;
 		this.gainNode = null;
+		this.speakerGainNode = null;
 		this.playbackContext = null;
 		this.nextPlayTime = 0;
 
@@ -112,6 +132,16 @@ export class VoiceManager {
 		if (this.gainNode) {
 			this.gainNode.gain.value = volume / 100;
 		}
+	}
+
+	setSpeakerVolume(volume: number): void {
+		if (this.speakerGainNode) {
+			this.speakerGainNode.gain.value = volume / 100;
+		}
+	}
+
+	setOnSpeaking(callback?: (speaking: boolean) => void): void {
+		this.onSpeakingCallback = callback;
 	}
 
 	isActive(): boolean {
@@ -185,7 +215,12 @@ export class VoiceManager {
 
 		const src = this.playbackContext.createBufferSource();
 		src.buffer = buffer;
-		src.connect(this.playbackContext.destination);
+		if (this.speakerGainNode) {
+			src.connect(this.speakerGainNode);
+			this.speakerGainNode.connect(this.playbackContext.destination);
+		} else {
+			src.connect(this.playbackContext.destination);
+		}
 
 		const now = this.playbackContext.currentTime;
 		if (this.nextPlayTime < now || this.nextPlayTime > now + 0.05) {

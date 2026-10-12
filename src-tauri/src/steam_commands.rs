@@ -4,7 +4,7 @@ use crate::net_manager;
 use serde::Serialize;
 use steamworks::networking_types::NetworkingConnectionState;
 use steamworks::{FriendFlags, LobbyId, LobbyType, SteamError, SteamId};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tokio::sync::oneshot;
 use std::os::windows::process::CommandExt;
 
@@ -496,11 +496,20 @@ pub fn get_local_user_id(state: State<'_, AppState>) -> String {
 
 /// 在托盘弹出窗口中使用：显示主窗口
 #[tauri::command]
-pub fn show_main_window(app_handle: tauri::AppHandle) {
+pub fn show_main_window(app_handle: tauri::AppHandle, open_friends: Option<bool>) {
     if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
         let _ = window.center();
+        if open_friends == Some(true) {
+            let w = window.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let _ = w.eval("localStorage.setItem('open_friends', '1');");
+                let _ = w.emit("open-friends", ());
+                let _ = w.eval("if(window.__openFriends){window.__openFriends();}");
+            });
+        }
     }
 }
 

@@ -28,6 +28,7 @@ interface AppSettings {
 	micDeviceId: string;
 	speakerDeviceId: string;
 	micVolume: number;
+	speakerVolume: number;
 	noiseSuppression: boolean;
 	echoCancellation: boolean;
 	autoGainControl: boolean;
@@ -78,6 +79,7 @@ const defaultSettings: AppSettings = {
 	micDeviceId: "",
 	speakerDeviceId: "",
 	micVolume: 100,
+	speakerVolume: 100,
 	noiseSuppression: true,
 	echoCancellation: true,
 	autoGainControl: true,

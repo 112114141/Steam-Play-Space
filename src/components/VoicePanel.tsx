@@ -9,6 +9,7 @@ interface VoiceUser {
 	id: string;
 	name: string;
 	speaking: boolean;
+	muted: boolean;
 }
 
 export function VoicePanel() {
@@ -83,9 +84,28 @@ export function VoicePanel() {
 				micDeviceId: settings.micDeviceId,
 				speakerDeviceId: settings.speakerDeviceId,
 				micVolume: settings.micVolume,
+				speakerVolume: settings.speakerVolume,
 				noiseSuppression: settings.noiseSuppression,
 				echoCancellation: settings.echoCancellation,
 				autoGainControl: settings.autoGainControl,
+			});
+			voiceManager.setOnSpeaking((speaking) => {
+				const myId = myIdRef.current;
+				if (!myId) return;
+				if (speaking) {
+					setSpeakingIds((prev) => {
+						const next = new Set(prev);
+						next.add(myId);
+						return next;
+					});
+					setTimeout(() => {
+						setSpeakingIds((prev) => {
+							const next = new Set(prev);
+							next.delete(myId);
+							return next;
+						});
+					}, 600);
+				}
 			});
 			await invoke("join_voice");
 			setInVoice(true);
@@ -97,6 +117,7 @@ export function VoicePanel() {
 	};
 
 	const handleLeaveVoice = async () => {
+		voiceManager.setOnSpeaking(undefined);
 		voiceManager.stop();
 		await invoke("leave_voice").catch(console.error);
 		setInVoice(false);
@@ -110,6 +131,7 @@ export function VoicePanel() {
 		const newMuted = !muted;
 		voiceManager.setMuted(newMuted);
 		setMuted(newMuted);
+		invoke("set_voice_muted", {muted: newMuted}).catch(console.error);
 	};
 
 	const handleToggleMuteUser = (userId: string) => {
@@ -179,7 +201,7 @@ export function VoicePanel() {
 			<div className="flex flex-wrap gap-1.5">
 				{voiceUsers.map((user) => {
 					const isMe = user.id === myIdRef.current;
-					const isSpeaking = !isMe && speakingIds.has(user.id) && !mutedUsers.has(user.id);
+					const isSpeaking = speakingIds.has(user.id) && !mutedUsers.has(user.id);
 					const userIsMuted = mutedUsers.has(user.id);
 					return (
 						<div
@@ -191,7 +213,7 @@ export function VoicePanel() {
 							}`}
 						>
 						{user.name}
-							{(isMe && muted) && <MicOff className="w-2.5 h-2.5" />}
+							{((isMe && muted) || user.muted) && <MicOff className="w-2.5 h-2.5" />}
 							{!isMe && (
 							<button
 								onClick={() => handleToggleMuteUser(user.id)}

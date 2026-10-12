@@ -643,6 +643,7 @@ async fn main() {
             voice::send_voice_data,
             voice::join_voice,
             voice::leave_voice,
+            voice::set_voice_muted,
             voice::is_voice_active,
             voice::get_voice_users,
             open_log_window,
