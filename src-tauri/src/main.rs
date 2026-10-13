@@ -636,6 +636,8 @@ async fn main() {
             steam_commands::start_udp_host,
             steam_commands::start_udp_client,
             steam_commands::stop_udp_tunnel,
+            steam_commands::check_for_updates,
+            steam_commands::download_and_install_update,
             chat::send_chat_message,
             chat::get_chat_history,
             file_transfer::send_file_to_lobby,

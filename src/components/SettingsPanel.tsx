@@ -1,9 +1,10 @@
 import {invoke} from "@tauri-apps/api/core";
 import {open} from "@tauri-apps/plugin-dialog";
-import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves, Folder, AlertCircle} from "lucide-react";
+import {Radar, Minimize2, X, Settings, ArrowLeftRight, Mic, Volume2, RefreshCw, Waves, Folder, AlertCircle, Download, Sparkles} from "lucide-react";
 import {useApp} from "../AppContext";
 import {voiceManager} from "../voice";
 import {useEffect, useState} from "react";
+import {toast} from "react-hot-toast";
 
 interface Props {
 	isOpen: boolean;
@@ -14,6 +15,43 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 	const {settings, setSettings} = useApp();
 	const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
 	const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+	const [checkingUpdate, setCheckingUpdate] = useState(false);
+	const [updateInfo, setUpdateInfo] = useState<{has_update: boolean; latest_version: string; release_notes: string; download_url: string; download_size: number} | null>(null);
+	const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+
+	const handleCheckUpdate = async () => {
+		setCheckingUpdate(true);
+		try {
+			const info = await invoke<{
+				has_update: boolean;
+				current_version: string;
+				latest_version: string;
+				release_notes: string;
+				download_url: string;
+				download_size: number;
+			}>("check_for_updates");
+			if (info.has_update) {
+				setUpdateInfo(info);
+			} else {
+				toast.success(`已是最新版本 v${info.current_version}`);
+			}
+		} catch (e: any) {
+			toast.error("检查更新失败: " + (typeof e === "string" ? e : e.message || ""));
+		} finally {
+			setCheckingUpdate(false);
+		}
+	};
+
+	const handleDownloadUpdate = async () => {
+		if (!updateInfo) return;
+		setDownloadingUpdate(true);
+		try {
+			await invoke("download_and_install_update", {downloadUrl: updateInfo.download_url});
+		} catch (e: any) {
+			toast.error("下载失败: " + (typeof e === "string" ? e : e.message || ""));
+			setDownloadingUpdate(false);
+		}
+	};
 
 	const refreshDevices = async () => {
 		try {
@@ -401,7 +439,15 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 					</div>
 				</div>
 
-				<div className="pt-3 border-t border-border text-center">
+				<div className="pt-3 border-t border-border text-center space-y-2">
+					<button
+						onClick={handleCheckUpdate}
+						disabled={checkingUpdate}
+						className="flex items-center justify-center gap-2 w-full py-2 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors disabled:opacity-50"
+					>
+						<Sparkles className={`w-3.5 h-3.5 ${checkingUpdate ? "animate-spin" : ""}`} />
+						{checkingUpdate ? "检查中..." : "检查更新"}
+					</button>
 					<p className="text-[11px] text-muted-foreground">
 						Made By{" "}
 						<span
@@ -413,6 +459,60 @@ export function SettingsPanel({isOpen, onClose}: Props) {
 					</p>
 				</div>
 			</div>
+
+			{updateInfo && (
+				<>
+					<div
+						className="fixed inset-0 bg-background/60 backdrop-blur-sm z-[150]"
+						onClick={() => !downloadingUpdate && setUpdateInfo(null)}
+					/>
+					<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md mx-4 p-6 rounded-3xl bg-card border border-border shadow-2xl space-y-4 z-[160]">
+						<div className="flex items-center gap-2">
+							<Download className="w-5 h-5 text-primary" />
+							<h3 className="text-base font-black text-foreground">
+								发现新版本 v{updateInfo.latest_version}
+							</h3>
+						</div>
+						<div className="max-h-48 overflow-y-auto text-xs text-muted-foreground bg-muted/30 rounded-xl p-3 whitespace-pre-wrap leading-relaxed">
+							{updateInfo.release_notes || "无更新日志"}
+						</div>
+						<p className="text-[11px] text-muted-foreground text-center">
+							安装包大小: {(updateInfo.download_size / 1024 / 1024).toFixed(1)} MB
+						</p>
+						<div className="flex gap-3">
+							<button
+								onClick={() => setUpdateInfo(null)}
+								disabled={downloadingUpdate}
+								className="flex-1 h-11 rounded-xl border border-border bg-muted/30 text-sm font-bold text-muted-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+							>
+								稍后更新
+							</button>
+							<button
+								onClick={handleDownloadUpdate}
+								disabled={downloadingUpdate}
+								className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+							>
+								{downloadingUpdate ? (
+									<>
+										<RefreshCw className="w-4 h-4 animate-spin" />
+										下载中...
+									</>
+								) : (
+									<>
+										<Download className="w-4 h-4" />
+										下载并安装
+									</>
+								)}
+							</button>
+						</div>
+						{downloadingUpdate && (
+							<p className="text-[11px] text-primary/70 text-center">
+								下载完成后将自动启动安装程序，程序将退出
+							</p>
+						)}
+					</div>
+				</>
+			)}
 		</>
 	);
 }

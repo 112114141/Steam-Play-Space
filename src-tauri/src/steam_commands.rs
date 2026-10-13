@@ -687,3 +687,99 @@ pub async fn start_udp_client(
 pub fn stop_udp_tunnel(state: State<'_, AppState>) {
     crate::udp_net_manager::stop_udp_tunnel(&state);
 }
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UpdateInfo {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: String,
+    pub release_notes: String,
+    pub download_url: String,
+    pub download_size: u64,
+}
+
+#[tauri::command]
+pub async fn check_for_updates() -> AppResult<UpdateInfo> {
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    let client = reqwest::Client::builder()
+        .user_agent("SteamPlaySpace")
+        .build()
+        .map_err(|e| AppError::Internal(format!("创建HTTP客户端失败: {}", e)))?;
+
+    let resp = client
+        .get("https://api.github.com/repos/112114141/Steam-Play-Space/releases/latest")
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("检查更新失败: {}", e)))?;
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("解析更新信息失败: {}", e)))?;
+
+    let tag_name = json["tag_name"].as_str().unwrap_or("");
+    let latest_version = tag_name.trim_start_matches('v').to_string();
+    let release_notes = json["body"].as_str().unwrap_or("").to_string();
+
+    let mut download_url = String::new();
+    let mut download_size = 0u64;
+    if let Some(assets) = json["assets"].as_array() {
+        for asset in assets {
+            let name = asset["name"].as_str().unwrap_or("");
+            if name.ends_with("-setup.exe") {
+                download_url = asset["browser_download_url"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
+                download_size = asset["size"].as_u64().unwrap_or(0);
+                break;
+            }
+        }
+    }
+
+    let has_update = !latest_version.is_empty() && latest_version != current_version;
+
+    Ok(UpdateInfo {
+        has_update,
+        current_version: current_version.to_string(),
+        latest_version,
+        release_notes,
+        download_url,
+        download_size,
+    })
+}
+
+#[tauri::command]
+pub async fn download_and_install_update(download_url: String) -> AppResult<()> {
+    use std::io::Write;
+
+    let client = reqwest::Client::builder()
+        .user_agent("SteamPlaySpace")
+        .build()
+        .map_err(|e| AppError::Internal(format!("创建HTTP客户端失败: {}", e)))?;
+
+    let resp = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("下载失败: {}", e)))?;
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| AppError::Internal(format!("读取下载内容失败: {}", e)))?;
+
+    let temp_path = std::env::temp_dir().join("SteamPlaySpace_update_setup.exe");
+
+    let mut file = std::fs::File::create(&temp_path)
+        .map_err(|e| AppError::Internal(format!("创建临时文件失败: {}", e)))?;
+    file.write_all(&bytes)
+        .map_err(|e| AppError::Internal(format!("写入临时文件失败: {}", e)))?;
+
+    std::process::Command::new(&temp_path)
+        .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| AppError::Internal(format!("启动安装程序失败: {}", e)))?;
+
+    std::process::exit(0);
+}
